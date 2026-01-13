@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { login } from "../api/auth";
 
-export default function Login({ onLoggedIn }) {
+export default function Login() {
+  const navigate = useNavigate();
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -14,11 +16,12 @@ export default function Login({ onLoggedIn }) {
 
     try {
       await login(username, password);
-      onLoggedIn?.();
+      navigate("/dashboard");
     } catch (err) {
       const msg =
         err?.response?.data?.detail ||
         err?.response?.data?.non_field_errors?.[0] ||
+        err?.message ||
         "Login failed.";
       setError(msg);
     } finally {
@@ -52,11 +55,7 @@ export default function Login({ onLoggedIn }) {
           />
         </div>
 
-        {error && (
-          <p style={{ color: "crimson", marginTop: 12 }}>
-            {error}
-          </p>
-        )}
+        {error && <p style={{ color: "crimson", marginTop: 12 }}>{error}</p>}
 
         <button
           style={{ marginTop: 14, padding: "10px 14px", width: "100%" }}

@@ -1,34 +1,28 @@
-import { useState } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
 import Patients from "./pages/Patients";
-import { isLoggedIn, logout } from "./api/auth";
+import ProtectedRoute from "./components/ProtectedRoute";
+import DashboardLayout from "./layouts/DashboardLayout";
 
 export default function App() {
-  const [authed, setAuthed] = useState(isLoggedIn());
-
-  if (!authed) {
-    return <Login onLoggedIn={() => setAuthed(true)} />;
-  }
-
   return (
-    <div style={{ padding: 30 }}>
-      <h1>ClinicFlowHQ ✅</h1>
-      <p>You are logged in successfully.</p>
+    <Routes>
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/login" element={<Login />} />
 
-      <button
-        style={{ marginTop: 10, padding: "10px 16px", cursor: "pointer" }}
-        onClick={() => {
-          logout();
-          setAuthed(false);
-          alert("✅ Logged out!");
-        }}
+      <Route
+        element={
+          <ProtectedRoute>
+            <DashboardLayout />
+          </ProtectedRoute>
+        }
       >
-        Logout
-      </button>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/patients" element={<Patients />} />
+      </Route>
 
-      <hr style={{ margin: "20px 0" }} />
-
-      <Patients />
-    </div>
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
   );
 }
