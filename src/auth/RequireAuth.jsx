@@ -1,3 +1,4 @@
+// src/auth/RequireAuth.jsx
 import { Navigate } from "react-router-dom";
 import { isLoggedIn } from "../api/auth";
 

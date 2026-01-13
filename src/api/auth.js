@@ -1,3 +1,4 @@
+// src/api/auth.js
 import { api } from "./client";
 
 export async function login(username, password) {
@@ -23,4 +24,9 @@ export function logout() {
 
 export function isLoggedIn() {
   return !!localStorage.getItem("access_token");
+}
+
+// ✅ Added: used by API client/interceptors or RequireAuth if needed
+export function getAccessToken() {
+  return localStorage.getItem("access_token");
 }
