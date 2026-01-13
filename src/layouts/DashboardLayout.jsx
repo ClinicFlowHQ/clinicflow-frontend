@@ -1,56 +1,79 @@
-// src/layouts/DashboardLayout.jsx
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { logout } from "../api/auth";
+
+const linkStyle = ({ isActive }) => ({
+  display: "block",
+  padding: "10px 12px",
+  borderRadius: 10,
+  textDecoration: "none",
+  color: isActive ? "#111" : "#444",
+  background: isActive ? "#e9ecef" : "transparent",
+  fontWeight: isActive ? 700 : 500,
+});
 
 export default function DashboardLayout() {
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
-
-  const linkStyle = ({ isActive }) => ({
-    display: "block",
-    padding: "10px 12px",
-    borderRadius: 8,
-    textDecoration: "none",
-    color: "#111",
-    background: isActive ? "#f0f0f0" : "transparent",
-    marginBottom: 6,
-  });
-
   return (
-    <div>
-      {/* top bar */}
-      <div
+    <div style={{ display: "flex", minHeight: "100vh" }}>
+      {/* Sidebar */}
+      <aside
         style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "12px 16px",
-          borderBottom: "1px solid #eee",
+          width: 260,
+          padding: 16,
+          borderRight: "1px solid #eee",
+          background: "#fafafa",
         }}
       >
-        <b>ClinicFlowHQ</b>
-        <button onClick={handleLogout}>Logout</button>
-      </div>
+        <h2 style={{ margin: "6px 0 14px" }}>ClinicFlow</h2>
 
-      {/* body */}
-      <div style={{ display: "grid", gridTemplateColumns: "240px 1fr" }}>
-        <aside style={{ padding: 16, borderRight: "1px solid #eee" }}>
+        <nav style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <NavLink to="/dashboard" style={linkStyle}>
             Dashboard
           </NavLink>
+
           <NavLink to="/patients" style={linkStyle}>
             Patients
           </NavLink>
-        </aside>
 
-        <main style={{ padding: 24 }}>
-          <Outlet />
-        </main>
-      </div>
+          {/* Add later */}
+          <NavLink to="/appointments" style={linkStyle}>
+            Appointments (soon)
+          </NavLink>
+
+          <NavLink to="/visits" style={linkStyle}>
+            Visits (soon)
+          </NavLink>
+
+          <NavLink to="/prescriptions" style={linkStyle}>
+            Prescriptions (soon)
+          </NavLink>
+        </nav>
+
+        <div style={{ marginTop: 18 }}>
+          <button
+            onClick={() => {
+              logout();
+              navigate("/login");
+            }}
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              borderRadius: 10,
+              border: "1px solid #ddd",
+              background: "white",
+              cursor: "pointer",
+            }}
+          >
+            Logout
+          </button>
+        </div>
+      </aside>
+
+      {/* Main */}
+      <main style={{ flex: 1, padding: 20 }}>
+        <Outlet />
+      </main>
     </div>
   );
 }

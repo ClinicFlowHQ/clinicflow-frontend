@@ -1,25 +1,31 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { getPatients, createPatient } from "../api/patients";
 
 export default function Patients() {
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Search
+  const [query, setQuery] = useState("");
+
   // form fields
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [sex, setSex] = useState("M"); // backend expects: sex
+  const [sex, setSex] = useState("M");
   const [phone, setPhone] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [address, setAddress] = useState("");
 
   async function loadPatients() {
+    setLoading(true);
     try {
       const data = await getPatients();
-      setPatients(data);
+      setPatients(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.log(err);
+      console.log("GET PATIENTS ERROR:", err?.response?.data || err);
       alert("❌ Failed to fetch patients.");
+      setPatients([]);
     } finally {
       setLoading(false);
     }
@@ -36,15 +42,13 @@ export default function Patients() {
       await createPatient({
         first_name: firstName.trim(),
         last_name: lastName.trim(),
-        sex: sex, // ✅ required by backend
+        sex,
         phone: phone.trim(),
-        date_of_birth: dateOfBirth, // ✅ required if backend has it as required
-        address: address.trim(), // ✅ backend says it cannot be blank
+        date_of_birth: dateOfBirth,
+        address: address.trim(),
       });
 
-      alert("✅ Patient created!");
-
-      // clear form
+      // Clear form
       setFirstName("");
       setLastName("");
       setSex("M");
@@ -52,8 +56,7 @@ export default function Patients() {
       setDateOfBirth("");
       setAddress("");
 
-      // reload list
-      setLoading(true);
+      alert("✅ Patient created!");
       await loadPatients();
     } catch (err) {
       console.log("CREATE PATIENT ERROR:", err?.response?.data || err);
@@ -64,86 +67,246 @@ export default function Patients() {
     }
   };
 
-  if (loading) return <p>Loading patients...</p>;
+  const filteredPatients = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return patients;
+
+    return patients.filter((p) => {
+      const haystack = [
+        p.patient_code,
+        p.first_name,
+        p.last_name,
+        p.phone,
+        p.address,
+        p.sex,
+        p.date_of_birth,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(q);
+    });
+  }, [patients, query]);
+
+  if (loading) return <p style={{ marginTop: 20 }}>Loading patients...</p>;
 
   return (
-    <div style={{ marginTop: 20 }}>
-      <h2>Patients</h2>
+    <div style={{ marginTop: 10 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+        <h2 style={{ margin: 0 }}>Patients</h2>
+        <span style={{ color: "#666" }}>
+          {filteredPatients.length} / {patients.length}
+        </span>
+      </div>
 
-      {/* CREATE PATIENT FORM */}
+      {/* Search */}
+      <div style={{ marginTop: 14, marginBottom: 14, maxWidth: 520 }}>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by code, name, phone, address..."
+          style={{
+            width: "100%",
+            padding: 10,
+            border: "1px solid #ddd",
+            borderRadius: 8,
+          }}
+        />
+        {query.trim() && (
+          <button
+            onClick={() => setQuery("")}
+            style={{
+              marginTop: 8,
+              padding: "8px 10px",
+              borderRadius: 8,
+              border: "1px solid #ddd",
+              background: "white",
+              cursor: "pointer",
+            }}
+          >
+            Clear search
+          </button>
+        )}
+      </div>
+
+      {/* Create Patient */}
       <form
         onSubmit={handleCreate}
         style={{
-          marginBottom: 20,
-          padding: 15,
-          border: "1px solid #ddd",
-          maxWidth: 450,
-          display: "flex",
-          flexDirection: "column",
-          gap: 10,
+          marginBottom: 18,
+          padding: 16,
+          border: "1px solid #e5e5e5",
+          borderRadius: 12,
+          maxWidth: 620,
+          background: "white",
         }}
       >
-        <h3>Add Patient</h3>
+        <h3 style={{ marginTop: 0 }}>Add Patient</h3>
 
-        <input
-          placeholder="First name"
-          value={firstName}
-          onChange={(e) => setFirstName(e.target.value)}
-          required
-        />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <input
+            placeholder="First name"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            required
+            style={{ padding: 10, border: "1px solid #ddd", borderRadius: 8 }}
+          />
+          <input
+            placeholder="Last name"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            required
+            style={{ padding: 10, border: "1px solid #ddd", borderRadius: 8 }}
+          />
+        </div>
 
-        <input
-          placeholder="Last name"
-          value={lastName}
-          onChange={(e) => setLastName(e.target.value)}
-          required
-        />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
+          <select
+            value={sex}
+            onChange={(e) => setSex(e.target.value)}
+            required
+            style={{ padding: 10, border: "1px solid #ddd", borderRadius: 8 }}
+          >
+            <option value="M">Male</option>
+            <option value="F">Female</option>
+          </select>
 
-        <select value={sex} onChange={(e) => setSex(e.target.value)} required>
-          <option value="M">Male</option>
-          <option value="F">Female</option>
-        </select>
+          <input
+            placeholder="Phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            style={{ padding: 10, border: "1px solid #ddd", borderRadius: 8 }}
+          />
+        </div>
 
-        <input
-          placeholder="Phone"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          required
-        />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
+          <input
+            type="date"
+            value={dateOfBirth}
+            onChange={(e) => setDateOfBirth(e.target.value)}
+            required
+            style={{ padding: 10, border: "1px solid #ddd", borderRadius: 8 }}
+          />
 
-        <input
-          type="date"
-          value={dateOfBirth}
-          onChange={(e) => setDateOfBirth(e.target.value)}
-          required
-        />
+          <input
+            placeholder="Address"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            required
+            style={{ padding: 10, border: "1px solid #ddd", borderRadius: 8 }}
+          />
+        </div>
 
-        <input
-          placeholder="Address"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          required
-        />
-
-        <button type="submit">Create Patient</button>
+        <button
+          type="submit"
+          style={{
+            marginTop: 12,
+            width: "100%",
+            padding: "12px 14px",
+            borderRadius: 10,
+            border: "1px solid #ddd",
+            background: "#f7f7f7",
+            cursor: "pointer",
+            fontWeight: 600,
+          }}
+        >
+          Create Patient
+        </button>
       </form>
 
-      {/* LIST */}
-      {patients.length === 0 ? (
-        <p>No patients found.</p>
+      {/* Table */}
+      {filteredPatients.length === 0 ? (
+        <p style={{ color: "#666" }}>No patients found.</p>
       ) : (
-        <ul>
-          {patients.map((p) => (
-            <li key={p.id}>
-              <b>
-                {p.first_name} {p.last_name}
-              </b>{" "}
-              — {p.phone} — {p.sex}{" "}
-              {p.address ? `— ${p.address}` : ""}
-            </li>
-          ))}
-        </ul>
+        <div
+          style={{
+            overflowX: "auto",
+            border: "1px solid #e5e5e5",
+            borderRadius: 12,
+            background: "white",
+          }}
+        >
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "#fafafa" }}>
+                <th style={th}>Code</th>
+                <th style={th}>Name</th>
+                <th style={th}>Sex</th>
+                <th style={th}>DOB</th>
+                <th style={th}>Phone</th>
+                <th style={th}>Address</th>
+                <th style={th}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredPatients.map((p) => (
+                <tr key={p.id} style={{ borderTop: "1px solid #eee" }}>
+                  <td style={td}>{p.patient_code || "-"}</td>
+                  <td style={td}>
+                    <Link
+                      to={`/patients/${p.id}`}
+                      style={{ color: "#2a5bd7", textDecoration: "none", fontWeight: 600 }}
+                    >
+                      {p.first_name} {p.last_name}
+                    </Link>
+                  </td>
+                  <td style={td}>{p.sex || "-"}</td>
+                  <td style={td}>{p.date_of_birth || "-"}</td>
+                  <td style={td}>{p.phone || "-"}</td>
+                  <td style={td}>{p.address || "-"}</td>
+                  <td style={td}>
+                    <Link
+                      to={`/patients/${p.id}`}
+                      style={{
+                        display: "inline-block",
+                        padding: "6px 10px",
+                        borderRadius: 8,
+                        border: "1px solid #ddd",
+                        background: "white",
+                        textDecoration: "none",
+                        color: "#111",
+                      }}
+                    >
+                      View
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
+
+      {/* Refresh button */}
+      <div style={{ marginTop: 12 }}>
+        <button
+          onClick={loadPatients}
+          style={{
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: "1px solid #ddd",
+            background: "white",
+            cursor: "pointer",
+          }}
+        >
+          Refresh list
+        </button>
+      </div>
     </div>
   );
 }
+
+const th = {
+  textAlign: "left",
+  padding: "12px 12px",
+  fontSize: 13,
+  color: "#444",
+  borderBottom: "1px solid #eee",
+  whiteSpace: "nowrap",
+};
+
+const td = {
+  padding: "12px 12px",
+  verticalAlign: "top",
+};

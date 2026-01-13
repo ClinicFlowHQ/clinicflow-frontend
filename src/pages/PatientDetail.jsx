@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import api from "../api/client";
+import { api } from "../api/client";
 
 export default function PatientDetail() {
   const { id } = useParams();
@@ -9,13 +9,18 @@ export default function PatientDetail() {
   const [patient, setPatient] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  async function load() {
+  async function loadPatient() {
+    setLoading(true);
     try {
-      const res = await api.get(`/patients/${id}/`);
+      // ✅ correct base path (your backend routes are /api/patients/)
+      const res = await api.get(`/api/patients/${id}/`);
       setPatient(res.data);
     } catch (err) {
       console.log("PATIENT DETAIL ERROR:", err?.response?.data || err);
-      alert("❌ Failed to load patient details.");
+      alert(
+        "❌ Failed to load patient details:\n" +
+          JSON.stringify(err?.response?.data || err?.message || err, null, 2)
+      );
       navigate("/patients");
     } finally {
       setLoading(false);
@@ -23,7 +28,7 @@ export default function PatientDetail() {
   }
 
   useEffect(() => {
-    load();
+    loadPatient();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -39,11 +44,21 @@ export default function PatientDetail() {
       </h2>
 
       <div style={{ marginTop: 10, lineHeight: 1.8 }}>
-        <div><b>Phone:</b> {patient.phone || "-"}</div>
-        <div><b>Sex:</b> {patient.sex || "-"}</div>
-        <div><b>Date of birth:</b> {patient.date_of_birth || "-"}</div>
-        <div><b>Address:</b> {patient.address || "-"}</div>
-        <div><b>Patient code:</b> {patient.patient_code || "-"}</div>
+        <div>
+          <b>Phone:</b> {patient.phone || "-"}
+        </div>
+        <div>
+          <b>Sex:</b> {patient.sex || "-"}
+        </div>
+        <div>
+          <b>Date of birth:</b> {patient.date_of_birth || "-"}
+        </div>
+        <div>
+          <b>Address:</b> {patient.address || "-"}
+        </div>
+        <div>
+          <b>Patient code:</b> {patient.patient_code || "-"}
+        </div>
       </div>
     </div>
   );
