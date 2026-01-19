@@ -1,6 +1,7 @@
 // src/pages/Prescriptions.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import "./Prescriptions.css";
 
 import { api } from "../api/client";
@@ -9,10 +10,16 @@ import { getPatients } from "../api/patients";
 import {
   getPrescriptionTemplates,
   getPrescriptionTemplateDetail,
+  createPrescriptionTemplate,
+  updatePrescriptionTemplate,
+  deletePrescriptionTemplate,
   createPrescription,
+  deletePrescription,
   getVisitsForPicker,
   unwrapListResults,
   downloadPrescriptionPdf,
+  getMedications,
+  createMedication,
 } from "../api/prescriptions";
 
 function useQuery() {
@@ -20,10 +27,11 @@ function useQuery() {
   return useMemo(() => new URLSearchParams(search), [search]);
 }
 
-// Best-effort patient/visit label extraction without guessing your serializer shape
+// Best-effort patient/visit label extraction
 function getVisitIdFromRx(rx) {
   return rx?.visit?.id ?? rx?.visit_id ?? rx?.visit ?? "-";
 }
+
 function getPatientLabelFromRx(rx) {
   const direct = rx?.patient_name ?? rx?.patient?.full_name ?? rx?.patient?.name ?? null;
   if (direct) return direct;
@@ -40,7 +48,6 @@ function getPatientLabelFromRx(rx) {
   return "-";
 }
 
-// ✅ Visit dropdown label helper (Visit ID + Patient Name)
 function getVisitOptionLabel(v) {
   const pid = v?.id ?? "";
   const patientName =
@@ -51,11 +58,30 @@ function getVisitOptionLabel(v) {
   return patientName ? `${pid} — ${patientName}` : String(pid);
 }
 
+// Empty custom item template
+const createEmptyItem = () => ({
+  medication: "",
+  medication_display: "",
+  dosage: "",
+  route: "",
+  frequency: "",
+  duration: "",
+  instructions: "",
+});
+
+// Helper to get localized template name
+function getTemplateName(tpl, lang) {
+  if (lang === "fr" && tpl.name_fr) return tpl.name_fr;
+  return tpl.name;
+}
+
 export default function Prescriptions() {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const query = useQuery();
+  const currentLang = i18n.language?.split("-")[0] || "en";
 
-  const visitFromQuery = query.get("visit"); // /prescriptions?visit=123
+  const visitFromQuery = query.get("visit");
 
   // Templates
   const [templates, setTemplates] = useState([]);
@@ -65,34 +91,68 @@ export default function Prescriptions() {
   const [selectedTemplateId, setSelectedTemplateId] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
 
-  // Visit picker (for saving)
+  // Custom prescription mode
+  const [isCustomMode, setIsCustomMode] = useState(false);
+  const [customItems, setCustomItems] = useState([createEmptyItem()]);
+
+  // Medications list for custom mode
+  const [medications, setMedications] = useState([]);
+  const [medicationsLoading, setMedicationsLoading] = useState(false);
+
+  // Visit picker
   const [visitId, setVisitId] = useState(visitFromQuery ? String(visitFromQuery) : "");
   const [visits, setVisits] = useState([]);
   const [visitsLoading, setVisitsLoading] = useState(false);
 
   // Notes + save
   const [notes, setNotes] = useState("");
-  const [saveMsg, setSaveMsg] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
-  // -----------------------------
-  // Saved prescriptions list (Option A)
-  // -----------------------------
+  // Message state
+  const [message, setMessage] = useState({ type: "", text: "" });
+
+  // Saved prescriptions
   const [patients, setPatients] = useState([]);
   const [patientsLoading, setPatientsLoading] = useState(false);
-
   const [rxLoading, setRxLoading] = useState(false);
   const [rxError, setRxError] = useState("");
   const [prescriptions, setPrescriptions] = useState([]);
 
-  // Filter UI for saved list
+  // Filters
   const [filterPatientId, setFilterPatientId] = useState("");
   const [filterVisitId, setFilterVisitId] = useState("");
 
-  // Load templates list
+  // View modal
+  const [viewRx, setViewRx] = useState(null);
+
+  // PDF download state
+  const [downloadingId, setDownloadingId] = useState(null);
+
+  // Delete confirmation
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+
+  // Template editing modal
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState(null);
+  const [templateForm, setTemplateForm] = useState({
+    name: "",
+    name_fr: "",
+    description: "",
+    description_fr: "",
+    items: [],
+  });
+  const [templateSaving, setTemplateSaving] = useState(false);
+  const [templateDeleting, setTemplateDeleting] = useState(false);
+  const [templateLoading, setTemplateLoading] = useState(false);
+
+  // New medication modal
+  const [newMedModalOpen, setNewMedModalOpen] = useState(false);
+  const [newMedForm, setNewMedForm] = useState({ name: "", form: "", strength: "" });
+  const [newMedSaving, setNewMedSaving] = useState(false);
+
+  // Load templates
   useEffect(() => {
     let alive = true;
-
     async function run() {
       setTemplatesLoading(true);
       setTemplatesError("");
@@ -100,23 +160,38 @@ export default function Prescriptions() {
         const data = await getPrescriptionTemplates({ page: 1, pageSize: 200 });
         const arr = unwrapListResults(data);
         if (alive) setTemplates(arr);
-      } catch (e) {
-        if (alive) setTemplatesError("Failed to load templates.");
+      } catch {
+        if (alive) setTemplatesError(t("prescriptionsPage.loadTemplatesError"));
       } finally {
         if (alive) setTemplatesLoading(false);
       }
     }
-
     run();
-    return () => {
-      alive = false;
-    };
-  }, []);
+    return () => { alive = false; };
+  }, [t]);
 
-  // Load visits for saving (only if NOT linked from VisitDetail)
+  // Load medications for custom mode
   useEffect(() => {
     let alive = true;
+    async function run() {
+      setMedicationsLoading(true);
+      try {
+        const data = await getMedications({ page: 1, pageSize: 500 });
+        const arr = unwrapListResults(data);
+        if (alive) setMedications(arr);
+      } catch {
+        if (alive) setMedications([]);
+      } finally {
+        if (alive) setMedicationsLoading(false);
+      }
+    }
+    run();
+    return () => { alive = false; };
+  }, []);
 
+  // Load visits for picker
+  useEffect(() => {
+    let alive = true;
     async function run() {
       if (visitFromQuery) return;
       setVisitsLoading(true);
@@ -128,17 +203,13 @@ export default function Prescriptions() {
         if (alive) setVisitsLoading(false);
       }
     }
-
     run();
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [visitFromQuery]);
 
-  // Load patients for saved list filters
+  // Load patients for filters
   useEffect(() => {
     let alive = true;
-
     async function run() {
       setPatientsLoading(true);
       try {
@@ -151,25 +222,21 @@ export default function Prescriptions() {
         if (alive) setPatientsLoading(false);
       }
     }
-
     run();
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, []);
 
-  // Load saved prescriptions (first page, then client-filter)
+  // Load saved prescriptions
   async function loadSavedPrescriptions() {
     setRxLoading(true);
     setRxError("");
     try {
       const res = await api.get("/api/prescriptions/", { params: { page: 1, page_size: 200 } });
-      const data = res?.data;
-      const arr = unwrapListResults(data);
+      const arr = unwrapListResults(res?.data);
       setPrescriptions(arr);
-    } catch (e) {
+    } catch {
       setPrescriptions([]);
-      setRxError("Failed to load saved prescriptions.");
+      setRxError(t("prescriptionsPage.loadError"));
     } finally {
       setRxLoading(false);
     }
@@ -186,31 +253,27 @@ export default function Prescriptions() {
 
     return prescriptions.filter((rx) => {
       const rxVisitId = Number(getVisitIdFromRx(rx)) || null;
-
       const rxPatientId =
-        rx?.patient?.id ??
-        rx?.patient_id ??
-        rx?.patient ??
-        rx?.visit?.patient?.id ??
-        null;
+        rx?.patient?.id ?? rx?.patient_id ?? rx?.patient ?? rx?.visit?.patient?.id ?? null;
 
-      const okPatient = pid == null ? true : Number(rxPatientId) === pid;
-      const okVisit = vid == null ? true : Number(rxVisitId) === vid;
-
+      const okPatient = pid == null || Number(rxPatientId) === pid;
+      const okVisit = vid == null || Number(rxVisitId) === vid;
       const autoVisitOk = visitFromQuery ? Number(rxVisitId) === Number(visitFromQuery) : true;
 
       return okPatient && okVisit && autoVisitOk;
     });
   }, [prescriptions, filterPatientId, filterVisitId, visitFromQuery]);
 
-  async function handleSelectTemplate(t) {
-    setSelectedTemplateId(t.id);
+  async function handleSelectTemplate(tpl) {
+    setIsCustomMode(false);
+    setCustomItems([createEmptyItem()]);
+    setSelectedTemplateId(tpl.id);
     setSelectedTemplate(null);
-    setSaveMsg("");
+    setMessage({ type: "", text: "" });
     setNotes("");
 
     try {
-      const detail = await getPrescriptionTemplateDetail(t.id);
+      const detail = await getPrescriptionTemplateDetail(tpl.id);
       setSelectedTemplate(detail);
 
       const items = Array.isArray(detail.items) ? detail.items : [];
@@ -222,47 +285,113 @@ export default function Prescriptions() {
 
       setNotes(lines.join("\n"));
     } catch {
-      setSaveMsg("Failed to load template detail.");
+      setMessage({ type: "error", text: t("prescriptionsPage.loadTemplateDetailError") });
     }
   }
 
+  function handleSelectCustom() {
+    setIsCustomMode(true);
+    setSelectedTemplateId(null);
+    setSelectedTemplate(null);
+    setCustomItems([createEmptyItem()]);
+    setNotes("");
+    setMessage({ type: "", text: "" });
+  }
+
+  function handleAddCustomItem() {
+    setCustomItems([...customItems, createEmptyItem()]);
+  }
+
+  function handleRemoveCustomItem(index) {
+    if (customItems.length <= 1) return;
+    setCustomItems(customItems.filter((_, i) => i !== index));
+  }
+
+  function handleCustomItemChange(index, field, value) {
+    const updated = [...customItems];
+    updated[index] = { ...updated[index], [field]: value };
+
+    // If medication changed, update display name
+    if (field === "medication" && value) {
+      const med = medications.find(m => String(m.id) === String(value));
+      if (med) {
+        const display = [med.name, med.strength, med.form ? `(${med.form})` : ""].filter(Boolean).join(" ");
+        updated[index].medication_display = display;
+      }
+    }
+
+    setCustomItems(updated);
+  }
+
   async function handleSave() {
-    setSaveMsg("");
+    setMessage({ type: "", text: "" });
 
     const v = String(visitId).trim();
-    if (!v) return setSaveMsg("Please select a Visit (or open from a visit).");
-    if (!selectedTemplateId || !selectedTemplate) return setSaveMsg("Please select a template.");
+    if (!v) {
+      setMessage({ type: "error", text: t("prescriptionsPage.selectVisitError") });
+      return;
+    }
 
-    const templateItems = Array.isArray(selectedTemplate.items) ? selectedTemplate.items : [];
-    if (templateItems.length === 0) return setSaveMsg("This template has no items. Add items in admin first.");
+    let itemsPayload = [];
 
-    const itemsPayload = templateItems.map((it) => ({
-      medication: it.medication,
-      dosage: it.dosage || "",
-      route: it.route || "",
-      frequency: it.frequency || "",
-      duration: it.duration || "",
-      instructions: it.instructions || "",
-      allow_outside_purchase: false,
-    }));
+    if (isCustomMode) {
+      // Validate custom items - at least one medication required
+      const validItems = customItems.filter(it => it.medication);
+      if (validItems.length === 0) {
+        setMessage({ type: "error", text: t("prescriptionsPage.addAtLeastOneMed") });
+        return;
+      }
+
+      itemsPayload = validItems.map((it) => ({
+        medication: Number(it.medication),
+        dosage: it.dosage || "",
+        route: it.route || "",
+        frequency: it.frequency || "",
+        duration: it.duration || "",
+        instructions: it.instructions || "",
+        allow_outside_purchase: false,
+      }));
+    } else {
+      // Template mode
+      if (!selectedTemplateId || !selectedTemplate) {
+        setMessage({ type: "error", text: t("prescriptionsPage.selectTemplateError") });
+        return;
+      }
+
+      const templateItems = Array.isArray(selectedTemplate.items) ? selectedTemplate.items : [];
+      if (templateItems.length === 0) {
+        setMessage({ type: "error", text: t("prescriptionsPage.noTemplateItemsError") });
+        return;
+      }
+
+      itemsPayload = templateItems.map((it) => ({
+        medication: it.medication,
+        dosage: it.dosage || "",
+        route: it.route || "",
+        frequency: it.frequency || "",
+        duration: it.duration || "",
+        instructions: it.instructions || "",
+        allow_outside_purchase: false,
+      }));
+    }
 
     setIsSaving(true);
     try {
       const payload = {
         visit: Number(v),
-        template_used: selectedTemplateId,
+        template_used: isCustomMode ? null : selectedTemplateId,
         notes: notes || "",
         items: itemsPayload,
       };
 
       const created = await createPrescription(payload);
-      setSaveMsg(`Saved. Prescription #${created?.id ?? ""}`);
+      setMessage({ type: "success", text: t("prescriptionsPage.createSuccess", { id: created?.id ?? "" }) });
 
       await loadSavedPrescriptions();
 
       if (visitFromQuery) setTimeout(() => navigate(-1), 250);
     } catch {
-      setSaveMsg("Save failed. Check backend validation and visit ID.");
+      setMessage({ type: "error", text: t("prescriptionsPage.createError") });
     } finally {
       setIsSaving(false);
     }
@@ -271,100 +400,368 @@ export default function Prescriptions() {
   function handleClear() {
     setSelectedTemplateId(null);
     setSelectedTemplate(null);
+    setIsCustomMode(false);
+    setCustomItems([createEmptyItem()]);
     setNotes("");
-    setSaveMsg("");
+    setMessage({ type: "", text: "" });
     if (!visitFromQuery) setVisitId("");
   }
 
-  return (
-    <div className="cf-grid">
-      <div className="cf-row-between">
-        <div>
-          <h1 className="cf-title">Prescriptions</h1>
-          <div className="cf-subtitle">Templates → Edit → Save</div>
-        </div>
+  async function handleDownloadPdf(rxId) {
+    setDownloadingId(rxId);
+    try {
+      await downloadPrescriptionPdf(rxId, currentLang);
+    } catch {
+      setMessage({ type: "error", text: t("prescriptionsPage.pdfError") });
+    } finally {
+      setDownloadingId(null);
+    }
+  }
 
-        <div className="cf-row">
-          <button className="cf-btn" onClick={handleClear} disabled={isSaving}>
-            Clear
+  async function handleDelete(rxId) {
+    try {
+      await deletePrescription(rxId);
+      setMessage({ type: "success", text: t("prescriptionsPage.deleteSuccess") });
+      setDeleteConfirmId(null);
+      await loadSavedPrescriptions();
+    } catch {
+      setMessage({ type: "error", text: t("prescriptionsPage.deleteError") });
+    }
+  }
+
+  // Get medication display name
+  function getMedDisplay(med) {
+    if (!med) return "";
+    return [med.name, med.strength, med.form ? `(${med.form})` : ""].filter(Boolean).join(" ");
+  }
+
+  // -------- Template CRUD --------
+  async function openTemplateModal(tpl = null) {
+    if (tpl) {
+      // Editing existing template - fetch detail to get items with medication IDs
+      setTemplateModalOpen(true);
+      setTemplateLoading(true);
+      setEditingTemplate(tpl);
+      setTemplateForm({
+        name: tpl.name || "",
+        name_fr: tpl.name_fr || "",
+        description: tpl.description || "",
+        description_fr: tpl.description_fr || "",
+        items: [],
+      });
+
+      try {
+        const detail = await getPrescriptionTemplateDetail(tpl.id);
+        setTemplateForm({
+          name: detail.name || "",
+          name_fr: detail.name_fr || "",
+          description: detail.description || "",
+          description_fr: detail.description_fr || "",
+          items: (detail.items || []).map((it) => ({
+            medication: it.medication || "",
+            dosage: it.dosage || "",
+            route: it.route || "",
+            frequency: it.frequency || "",
+            duration: it.duration || "",
+            instructions: it.instructions || "",
+          })),
+        });
+      } catch (err) {
+        console.error("Failed to load template detail:", err);
+        setMessage({ type: "error", text: t("prescriptionsPage.templateLoadError") });
+      } finally {
+        setTemplateLoading(false);
+      }
+    } else {
+      // Creating new template
+      setEditingTemplate(null);
+      setTemplateForm({
+        name: "",
+        name_fr: "",
+        description: "",
+        description_fr: "",
+        items: [{ medication: "", dosage: "", route: "", frequency: "", duration: "", instructions: "" }],
+      });
+      setTemplateModalOpen(true);
+    }
+  }
+
+  function closeTemplateModal() {
+    setTemplateModalOpen(false);
+    setEditingTemplate(null);
+    setTemplateForm({ name: "", name_fr: "", description: "", description_fr: "", items: [] });
+  }
+
+  function handleTemplateFormChange(field, value) {
+    setTemplateForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function handleTemplateItemChange(index, field, value) {
+    setTemplateForm((prev) => {
+      const newItems = [...prev.items];
+      newItems[index] = { ...newItems[index], [field]: value };
+      return { ...prev, items: newItems };
+    });
+  }
+
+  function addTemplateItem() {
+    setTemplateForm((prev) => ({
+      ...prev,
+      items: [...prev.items, { medication: "", dosage: "", route: "", frequency: "", duration: "", instructions: "" }],
+    }));
+  }
+
+  function removeTemplateItem(index) {
+    if (templateForm.items.length <= 1) return;
+    setTemplateForm((prev) => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== index),
+    }));
+  }
+
+  async function handleSaveTemplate() {
+    if (!templateForm.name.trim()) {
+      setMessage({ type: "error", text: t("prescriptionsPage.templateNameRequired") });
+      return;
+    }
+
+    const validItems = templateForm.items.filter((it) => it.medication);
+    if (validItems.length === 0) {
+      setMessage({ type: "error", text: t("prescriptionsPage.templateNeedsMed") });
+      return;
+    }
+
+    setTemplateSaving(true);
+    try {
+      const payload = {
+        name: templateForm.name,
+        name_fr: templateForm.name_fr,
+        description: templateForm.description,
+        description_fr: templateForm.description_fr,
+        is_active: true,
+        items: validItems.map((it) => ({
+          medication: Number(it.medication),
+          dosage: it.dosage || "",
+          route: it.route || "",
+          frequency: it.frequency || "",
+          duration: it.duration || "",
+          instructions: it.instructions || "",
+        })),
+      };
+
+      if (editingTemplate) {
+        await updatePrescriptionTemplate(editingTemplate.id, payload);
+        setMessage({ type: "success", text: t("prescriptionsPage.templateUpdated") });
+      } else {
+        await createPrescriptionTemplate(payload);
+        setMessage({ type: "success", text: t("prescriptionsPage.templateCreated") });
+      }
+
+      closeTemplateModal();
+      // Reload templates
+      const data = await getPrescriptionTemplates({ page: 1, pageSize: 200 });
+      setTemplates(unwrapListResults(data));
+    } catch {
+      setMessage({ type: "error", text: t("prescriptionsPage.templateSaveError") });
+    } finally {
+      setTemplateSaving(false);
+    }
+  }
+
+  async function handleDeleteTemplate() {
+    if (!editingTemplate) return;
+
+    setTemplateDeleting(true);
+    try {
+      await deletePrescriptionTemplate(editingTemplate.id);
+      setMessage({ type: "success", text: t("prescriptionsPage.templateDeleted") });
+      closeTemplateModal();
+      // Reload templates
+      const data = await getPrescriptionTemplates({ page: 1, pageSize: 200 });
+      setTemplates(unwrapListResults(data));
+    } catch {
+      setMessage({ type: "error", text: t("prescriptionsPage.templateDeleteError") });
+    } finally {
+      setTemplateDeleting(false);
+    }
+  }
+
+  // -------- New Medication --------
+  function openNewMedModal() {
+    setNewMedForm({ name: "", form: "", strength: "" });
+    setNewMedModalOpen(true);
+  }
+
+  function closeNewMedModal() {
+    setNewMedModalOpen(false);
+    setNewMedForm({ name: "", form: "", strength: "" });
+  }
+
+  async function handleSaveNewMedication() {
+    if (!newMedForm.name.trim()) {
+      setMessage({ type: "error", text: t("prescriptionsPage.medNameRequired") });
+      return;
+    }
+
+    setNewMedSaving(true);
+    try {
+      const created = await createMedication({
+        name: newMedForm.name.trim(),
+        form: newMedForm.form.trim(),
+        strength: newMedForm.strength.trim(),
+        is_active: true,
+      });
+      setMessage({ type: "success", text: t("prescriptionsPage.medCreated", { name: created.name }) });
+      closeNewMedModal();
+
+      // Reload medications
+      const data = await getMedications({ page: 1, pageSize: 500 });
+      setMedications(unwrapListResults(data));
+    } catch {
+      setMessage({ type: "error", text: t("prescriptionsPage.medCreateError") });
+    } finally {
+      setNewMedSaving(false);
+    }
+  }
+
+  // Loading skeleton
+  if (templatesLoading && rxLoading) {
+    return (
+      <div className="cf-animate-in" style={{ padding: 20 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div className="cf-skeleton" style={{ height: 32, width: 180 }} />
+          <div className="cf-skeleton" style={{ height: 20, width: 280 }} />
+          <div className="rx-layout">
+            <div className="cf-skeleton" style={{ height: 400, borderRadius: 16 }} />
+            <div className="cf-skeleton" style={{ height: 400, borderRadius: 16 }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="cf-animate-in" style={{ padding: 20 }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
+        <div>
+          <h2 style={{ margin: 0, color: "var(--text)" }}>{t("prescriptions.title")}</h2>
+          <p style={{ color: "var(--muted)", margin: "4px 0 0 0", fontSize: "0.875rem" }}>
+            {t("prescriptionsPage.subtitle")}
+          </p>
+        </div>
+        <div className="rx-header-actions">
+          <button className="rx-btn" onClick={handleClear} disabled={isSaving}>
+            {t("common.clear")}
           </button>
-          <button className="cf-btn cf-btn-primary" onClick={handleSave} disabled={isSaving}>
-            {isSaving ? "Saving..." : "Save"}
+          <button className="rx-btn rx-btn-primary" onClick={handleSave} disabled={isSaving}>
+            {isSaving ? t("common.saving") : t("common.save")}
           </button>
         </div>
       </div>
 
+      {/* Status message */}
+      {message.text && (
+        <div className={`rx-message ${message.type}`} style={{ marginBottom: 16 }}>
+          {message.text}
+        </div>
+      )}
+
       {/* Editor grid */}
-      <div style={{ display: "grid", gap: 14, gridTemplateColumns: "360px 1fr" }}>
-        {/* Left */}
-        <div className="cf-card">
-          <div className="cf-card-inner">
-            <div className="cf-row-between">
+      <div className="rx-layout">
+        {/* Templates panel */}
+        <div className="rx-card">
+          <div className="rx-card-header">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
-                <div style={{ fontWeight: 1000, fontSize: 16 }}>Templates</div>
-                <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 4 }}>Select a model, then edit.</div>
+                <h3 className="rx-card-title">{t("prescriptions.templates")}</h3>
+                <p className="rx-card-subtitle">{t("prescriptionsPage.selectTemplate")}</p>
               </div>
+              <button
+                className="rx-btn rx-btn-sm"
+                onClick={() => openTemplateModal(null)}
+              >
+                + {t("prescriptionsPage.createTemplate")}
+              </button>
             </div>
+          </div>
 
-            {templatesLoading ? <div style={{ color: "var(--muted)", marginTop: 10 }}>Loading...</div> : null}
-            {templatesError ? <div style={{ color: "var(--danger)", marginTop: 10 }}>{templatesError}</div> : null}
+          <div className="rx-template-list">
+            {/* Custom prescription button */}
+            <button
+              onClick={handleSelectCustom}
+              className={`rx-template-item rx-template-custom ${isCustomMode ? "active" : ""}`}
+            >
+              + {t("prescriptionsPage.customPrescription")}
+            </button>
 
-            <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-              {templates.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => handleSelectTemplate(t)}
-                  className="cf-btn"
-                  style={{
-                    textAlign: "left",
-                    background: selectedTemplateId === t.id ? "var(--panel-2)" : "var(--panel)",
-                    borderColor: selectedTemplateId === t.id ? "rgba(96,165,250,0.35)" : "var(--border)",
-                  }}
-                >
-                  {t.name}
-                </button>
-              ))}
-            </div>
+            {templatesLoading ? (
+              <div style={{ padding: 16, color: "var(--muted)" }}>{t("common.loading")}</div>
+            ) : templatesError ? (
+              <div style={{ padding: 16, color: "var(--error)" }}>{templatesError}</div>
+            ) : templates.length === 0 ? (
+              <div className="rx-empty">{t("prescriptionsPage.noTemplates")}</div>
+            ) : (
+              templates.map((tpl) => (
+                <div key={tpl.id} className="rx-template-item-wrapper">
+                  <button
+                    onClick={() => handleSelectTemplate(tpl)}
+                    className={`rx-template-item ${selectedTemplateId === tpl.id ? "active" : ""}`}
+                  >
+                    {getTemplateName(tpl, currentLang)}
+                  </button>
+                  <button
+                    className="rx-template-edit-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openTemplateModal(tpl);
+                    }}
+                    title={t("common.edit")}
+                  >
+                    ✎
+                  </button>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
-        {/* Right */}
-        <div className="cf-card">
-          <div className="cf-card-inner">
-            <div className="cf-row-between">
+        {/* Editor panel */}
+        <div className="rx-card">
+          <div className="rx-card-header">
+            <div className="rx-editor-header">
               <div>
-                <div style={{ fontWeight: 1000, fontSize: 18 }}>{selectedTemplate?.name || "New prescription"}</div>
-                <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 4 }}>Notes / Prescription text</div>
+                <h3 className="rx-editor-title">
+                  {isCustomMode
+                    ? t("prescriptionsPage.customPrescription")
+                    : (selectedTemplate ? getTemplateName(selectedTemplate, currentLang) : t("prescriptions.newPrescription"))}
+                </h3>
+                <p className="rx-card-subtitle">
+                  {isCustomMode
+                    ? t("prescriptionsPage.customPrescriptionDesc")
+                    : t("prescriptionsPage.notesLabel")}
+                </p>
               </div>
-              <span
-                style={{
-                  padding: "6px 10px",
-                  borderRadius: 999,
-                  border: "1px solid var(--border)",
-                  background: "var(--panel-2)",
-                  fontWeight: 900,
-                  fontSize: 12,
-                  color: "var(--muted)",
-                }}
-              >
-                Draft
+              <span className="rx-chip">
+                {isCustomMode ? t("prescriptionsPage.custom") : t("prescriptionsPage.draft")}
               </span>
             </div>
+          </div>
 
-            <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
-              <div>
-                <label style={{ fontSize: 12, color: "var(--muted)", fontWeight: 800 }}>Visit</label>
-
+          <div className="rx-card-body">
+            <div style={{ display: "grid", gap: 16 }}>
+              {/* Visit selector */}
+              <div className="rx-form-group">
+                <label className="rx-label">{t("prescriptionsPage.visit")}</label>
                 {visitFromQuery ? (
-                  <input className="cf-input" value={visitId} disabled />
+                  <input value={visitId} disabled style={{ opacity: 0.7 }} />
                 ) : (
                   <select
-                    className="cf-select"
                     value={visitId}
                     onChange={(e) => setVisitId(e.target.value)}
                     disabled={visitsLoading}
                   >
-                    <option value="">Click to choose...</option>
+                    <option value="">{t("prescriptionsPage.clickToChoose")}</option>
                     {visits.map((v) => (
                       <option key={v.id} value={v.id}>
                         {getVisitOptionLabel(v)}
@@ -372,60 +769,174 @@ export default function Prescriptions() {
                     ))}
                   </select>
                 )}
-
-                <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 6 }}>
-                  {visitFromQuery ? "Linked automatically from the visit." : "Pick a visit ID."}
-                </div>
+                <span className="rx-help">
+                  {visitFromQuery ? t("prescriptionsPage.linkedFromVisit") : t("prescriptionsPage.pickVisit")}
+                </span>
               </div>
 
-              <div>
-                <label style={{ fontSize: 12, color: "var(--muted)", fontWeight: 800 }}>
-                  Edit freely (stored in notes)
+              {/* Custom prescription items */}
+              {isCustomMode && (
+                <div className="rx-custom-items">
+                  <div className="rx-custom-items-header">
+                    <label className="rx-label">{t("prescriptions.medications")}</label>
+                    <button
+                      type="button"
+                      className="rx-btn rx-btn-sm"
+                      onClick={handleAddCustomItem}
+                    >
+                      + {t("prescriptionsPage.addMedication")}
+                    </button>
+                  </div>
+
+                  {customItems.map((item, idx) => (
+                    <div key={idx} className="rx-custom-item">
+                      <div className="rx-custom-item-header">
+                        <span className="rx-custom-item-number">{idx + 1}</span>
+                        {customItems.length > 1 && (
+                          <button
+                            type="button"
+                            className="rx-btn rx-btn-sm rx-btn-danger"
+                            onClick={() => handleRemoveCustomItem(idx)}
+                          >
+                            {t("common.delete")}
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="rx-custom-item-grid">
+                        <div className="rx-form-group">
+                          <label className="rx-label">{t("prescriptionsPage.medication")}</label>
+                          <div className="rx-medication-select-row">
+                            <select
+                              value={item.medication}
+                              onChange={(e) => handleCustomItemChange(idx, "medication", e.target.value)}
+                              disabled={medicationsLoading}
+                            >
+                              <option value="">{t("prescriptionsPage.selectMedication")}</option>
+                              {medications.map((med) => (
+                                <option key={med.id} value={med.id}>
+                                  {getMedDisplay(med)}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              className="rx-btn rx-btn-sm rx-btn-new-med"
+                              onClick={openNewMedModal}
+                              title={t("prescriptionsPage.createMedication")}
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="rx-form-group">
+                          <label className="rx-label">{t("prescriptions.dosage")}</label>
+                          <input
+                            type="text"
+                            value={item.dosage}
+                            onChange={(e) => handleCustomItemChange(idx, "dosage", e.target.value)}
+                            placeholder={t("prescriptionsPage.dosagePlaceholder")}
+                          />
+                        </div>
+
+                        <div className="rx-form-group">
+                          <label className="rx-label">{t("prescriptionsPage.route")}</label>
+                          <select
+                            value={item.route}
+                            onChange={(e) => handleCustomItemChange(idx, "route", e.target.value)}
+                          >
+                            <option value="">{t("prescriptionsPage.selectRoute")}</option>
+                            <option value="oral">{t("prescriptionsPage.routes.oral")}</option>
+                            <option value="topical">{t("prescriptionsPage.routes.topical")}</option>
+                            <option value="inhalation">{t("prescriptionsPage.routes.inhalation")}</option>
+                            <option value="injection">{t("prescriptionsPage.routes.injection")}</option>
+                            <option value="sublingual">{t("prescriptionsPage.routes.sublingual")}</option>
+                            <option value="rectal">{t("prescriptionsPage.routes.rectal")}</option>
+                            <option value="ophthalmic">{t("prescriptionsPage.routes.ophthalmic")}</option>
+                            <option value="otic">{t("prescriptionsPage.routes.otic")}</option>
+                            <option value="nasal">{t("prescriptionsPage.routes.nasal")}</option>
+                          </select>
+                        </div>
+
+                        <div className="rx-form-group">
+                          <label className="rx-label">{t("prescriptions.frequency")}</label>
+                          <input
+                            type="text"
+                            value={item.frequency}
+                            onChange={(e) => handleCustomItemChange(idx, "frequency", e.target.value)}
+                            placeholder={t("prescriptionsPage.frequencyPlaceholder")}
+                          />
+                        </div>
+
+                        <div className="rx-form-group">
+                          <label className="rx-label">{t("prescriptions.duration")}</label>
+                          <input
+                            type="text"
+                            value={item.duration}
+                            onChange={(e) => handleCustomItemChange(idx, "duration", e.target.value)}
+                            placeholder={t("prescriptionsPage.durationPlaceholder")}
+                          />
+                        </div>
+
+                        <div className="rx-form-group rx-form-group-full">
+                          <label className="rx-label">{t("prescriptions.instructions")}</label>
+                          <input
+                            type="text"
+                            value={item.instructions}
+                            onChange={(e) => handleCustomItemChange(idx, "instructions", e.target.value)}
+                            placeholder={t("prescriptionsPage.instructionsPlaceholder")}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Notes textarea */}
+              <div className="rx-form-group">
+                <label className="rx-label">
+                  {isCustomMode ? t("prescriptionsPage.additionalNotes") : t("prescriptionsPage.editFreely")}
                 </label>
                 <textarea
-                  className="cf-textarea"
+                  className="rx-textarea"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Write prescription here..."
+                  placeholder={t("prescriptionsPage.writePrescription")}
+                  style={isCustomMode ? { minHeight: 100 } : {}}
                 />
               </div>
-
-              {saveMsg ? (
-                <div className="cf-card" style={{ padding: 12, borderRadius: 12, background: "var(--panel-2)" }}>
-                  <b>Status:</b> {saveMsg}
-                </div>
-              ) : null}
             </div>
           </div>
         </div>
       </div>
 
-      {/* SAVED PRESCRIPTIONS */}
-      <div className="cf-card" style={{ marginTop: 14 }}>
-        <div className="cf-card-inner">
-          <div className="cf-row-between">
+      {/* Saved prescriptions */}
+      <div className="rx-card" style={{ marginTop: 20 }}>
+        <div className="rx-card-header">
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
             <div>
-              <div style={{ fontWeight: 1000, fontSize: 16 }}>Saved prescriptions</div>
-              <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 4 }}>
-                Filter and print/download PDFs.
-              </div>
+              <h3 className="rx-card-title">{t("prescriptionsPage.savedPrescriptions")}</h3>
+              <p className="rx-card-subtitle">{t("prescriptionsPage.filterAndPrint")}</p>
             </div>
-
-            <button className="cf-btn" onClick={loadSavedPrescriptions} disabled={rxLoading}>
-              {rxLoading ? "Loading..." : "Refresh"}
+            <button className="rx-btn" onClick={loadSavedPrescriptions} disabled={rxLoading}>
+              {rxLoading ? t("common.loading") : t("common.refresh")}
             </button>
           </div>
+        </div>
 
-          <div style={{ display: "grid", gap: 10, gridTemplateColumns: "1fr 1fr 1fr", marginTop: 12 }}>
-            <div>
-              <label style={{ fontSize: 12, color: "var(--muted)", fontWeight: 800 }}>Filter by patient</label>
+        <div className="rx-card-body">
+          {/* Filters */}
+          <div className="rx-filters">
+            <div className="rx-form-group">
+              <label className="rx-label">{t("prescriptionsPage.filterByPatient")}</label>
               <select
-                className="cf-select"
                 value={filterPatientId}
                 onChange={(e) => setFilterPatientId(e.target.value)}
                 disabled={patientsLoading}
               >
-                <option value="">All patients</option>
+                <option value="">{t("prescriptionsPage.allPatients")}</option>
                 {patients.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.first_name} {p.last_name} (#{p.id})
@@ -434,52 +945,53 @@ export default function Prescriptions() {
               </select>
             </div>
 
-            <div>
-              <label style={{ fontSize: 12, color: "var(--muted)", fontWeight: 800 }}>Filter by visit</label>
+            <div className="rx-form-group">
+              <label className="rx-label">{t("prescriptionsPage.filterByVisit")}</label>
               <input
-                className="cf-input"
                 value={filterVisitId}
                 onChange={(e) => setFilterVisitId(e.target.value.replace(/[^\d]/g, ""))}
-                placeholder="Type visit ID (e.g. 12)"
+                placeholder={t("prescriptionsPage.typeVisitId")}
               />
             </div>
 
-            <div style={{ display: "flex", gap: 10, alignItems: "end" }}>
+            <div className="rx-filter-actions">
               <button
-                className="cf-btn"
+                className="rx-btn"
                 onClick={() => {
                   setFilterPatientId("");
                   setFilterVisitId("");
                 }}
               >
-                Clear filters
+                {t("prescriptionsPage.clearFilters")}
               </button>
-
-              {visitFromQuery ? (
-                <button className="cf-btn" onClick={() => navigate(-1)}>
-                  Back to visit
+              {visitFromQuery && (
+                <button className="rx-btn" onClick={() => navigate(-1)}>
+                  {t("prescriptionsPage.backToVisit")}
                 </button>
-              ) : null}
+              )}
             </div>
           </div>
 
-          {rxError ? <div style={{ color: "var(--danger)", marginTop: 12 }}>{rxError}</div> : null}
+          {rxError && (
+            <div className="rx-message error" style={{ marginTop: 16 }}>{rxError}</div>
+          )}
 
-          <div style={{ marginTop: 12 }}>
-            {rxLoading ? (
-              <div style={{ color: "var(--muted)" }}>Loading saved prescriptions...</div>
-            ) : filteredPrescriptions.length === 0 ? (
-              <div style={{ color: "var(--muted)" }}>No saved prescriptions match your filters.</div>
-            ) : (
-              <div style={{ overflowX: "auto", marginTop: 8 }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          {/* Table */}
+          {rxLoading ? (
+            <div style={{ marginTop: 16, color: "var(--muted)" }}>{t("prescriptionsPage.loadingSaved")}</div>
+          ) : filteredPrescriptions.length === 0 ? (
+            <div className="rx-empty">{t("prescriptionsPage.noMatching")}</div>
+          ) : (
+            <>
+              <div className="rx-table-container">
+                <table className="rx-table">
                   <thead>
-                    <tr style={{ background: "var(--panel-2)" }}>
-                      <th style={th}>Rx #</th>
-                      <th style={th}>Patient</th>
-                      <th style={th}>Visit</th>
-                      <th style={th}>Created</th>
-                      <th style={th}>Actions</th>
+                    <tr>
+                      <th>{t("prescriptionsPage.rxNumber")}</th>
+                      <th>{t("prescriptionsPage.patient")}</th>
+                      <th>{t("prescriptionsPage.visitColumn")}</th>
+                      <th>{t("prescriptionsPage.created")}</th>
+                      <th>{t("common.actions")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -487,25 +999,35 @@ export default function Prescriptions() {
                       const rxId = rx?.id ?? "-";
                       const vId = getVisitIdFromRx(rx);
                       const patientLabel = getPatientLabelFromRx(rx);
-
                       const createdAt = rx?.created_at ?? rx?.created ?? rx?.createdAt ?? null;
                       const createdLabel = createdAt ? new Date(createdAt).toLocaleString() : "-";
 
                       return (
-                        <tr key={String(rxId)} style={{ borderTop: "1px solid var(--border)" }}>
-                          <td style={td}>{rxId}</td>
-                          <td style={td} title={patientLabel}>{patientLabel}</td>
-                          <td style={td}>{vId}</td>
-                          <td style={td}>{createdLabel}</td>
-                          <td style={td}>
-                            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                        <tr key={String(rxId)}>
+                          <td><strong>#{rxId}</strong></td>
+                          <td title={patientLabel}>{patientLabel}</td>
+                          <td>#{vId}</td>
+                          <td>{createdLabel}</td>
+                          <td>
+                            <div className="rx-table-actions">
                               <button
-                                className="cf-btn"
-                                onClick={() => downloadPrescriptionPdf(rxId)}
-                                disabled={!rx?.id}
-                                title="Download / Print PDF"
+                                className="rx-btn rx-btn-sm"
+                                onClick={() => setViewRx(rx)}
                               >
-                                Print / Download PDF
+                                {t("common.view")}
+                              </button>
+                              <button
+                                className="rx-btn rx-btn-sm rx-btn-primary"
+                                onClick={() => handleDownloadPdf(rxId)}
+                                disabled={downloadingId === rxId}
+                              >
+                                {downloadingId === rxId ? t("visitDetail.downloading") : t("prescriptionsPage.printPdf")}
+                              </button>
+                              <button
+                                className="rx-btn rx-btn-sm rx-btn-danger"
+                                onClick={() => setDeleteConfirmId(rxId)}
+                              >
+                                {t("common.delete")}
                               </button>
                             </div>
                           </td>
@@ -514,32 +1036,376 @@ export default function Prescriptions() {
                     })}
                   </tbody>
                 </table>
-
-                <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 10 }}>
-                  Note: patient/visit names depend on what your backend returns in the prescriptions list serializer. If it only returns
-                  IDs, you’ll see IDs here (still printable).
-                </div>
               </div>
-            )}
-          </div>
+              <p style={{ color: "var(--muted)", fontSize: "0.75rem", marginTop: 12 }}>
+                {t("prescriptionsPage.note")}
+              </p>
+            </>
+          )}
         </div>
       </div>
+
+      {/* View prescription modal */}
+      {viewRx && (
+        <div className="rx-modal-overlay" onClick={() => setViewRx(null)}>
+          <div className="rx-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="rx-modal-header">
+              <h3 className="rx-modal-title">
+                {t("visitDetail.prescriptionNumber", { id: viewRx.id })}
+              </h3>
+              <button className="rx-btn rx-btn-sm" onClick={() => setViewRx(null)}>
+                {t("common.close")}
+              </button>
+            </div>
+
+            <div className="rx-modal-body">
+              <div className="rx-detail-section">
+                <div className="rx-detail-label">{t("prescriptionsPage.patient")}</div>
+                <div className="rx-detail-value">{getPatientLabelFromRx(viewRx)}</div>
+              </div>
+
+              <div className="rx-detail-section">
+                <div className="rx-detail-label">{t("prescriptionsPage.visitColumn")}</div>
+                <div className="rx-detail-value">#{getVisitIdFromRx(viewRx)}</div>
+              </div>
+
+              <div className="rx-detail-section">
+                <div className="rx-detail-label">{t("prescriptions.medications")}</div>
+                {viewRx.items?.length > 0 ? (
+                  <div style={{ marginTop: 8 }}>
+                    {viewRx.items.map((item, idx) => (
+                      <div key={idx} className="rx-medication-item">
+                        <div className="rx-medication-name">
+                          {item.medication_display || item.medication?.name || `Medication #${item.medication}`}
+                        </div>
+                        <div className="rx-medication-details">
+                          {[item.dosage, item.route, item.frequency, item.duration]
+                            .filter(Boolean)
+                            .join(" | ")}
+                        </div>
+                        {item.instructions && (
+                          <div className="rx-medication-instructions">{item.instructions}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ color: "var(--muted)" }}>{t("prescriptionsPage.noMedications")}</div>
+                )}
+              </div>
+
+              {viewRx.notes && (
+                <div className="rx-detail-section">
+                  <div className="rx-detail-label">{t("visits.notes")}</div>
+                  <div className="rx-detail-value rx-notes">{viewRx.notes}</div>
+                </div>
+              )}
+
+              <div className="rx-detail-section">
+                <div className="rx-detail-label">{t("prescriptionsPage.created")}</div>
+                <div className="rx-detail-value">
+                  {viewRx.created_at ? new Date(viewRx.created_at).toLocaleString() : "-"}
+                </div>
+              </div>
+            </div>
+
+            <div className="rx-modal-footer">
+              <button
+                className="rx-btn rx-btn-primary"
+                onClick={() => handleDownloadPdf(viewRx.id)}
+                disabled={downloadingId === viewRx.id}
+              >
+                {downloadingId === viewRx.id ? t("visitDetail.downloading") : t("visitDetail.downloadPdf")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteConfirmId && (
+        <div className="rx-modal-overlay" onClick={() => setDeleteConfirmId(null)}>
+          <div className="rx-modal rx-confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="rx-modal-header">
+              <h3 className="rx-modal-title">{t("prescriptionsPage.confirmDelete")}</h3>
+            </div>
+            <div className="rx-modal-body">
+              <p className="rx-confirm-message">{t("prescriptionsPage.deleteWarning")}</p>
+            </div>
+            <div className="rx-modal-footer">
+              <button className="rx-btn" onClick={() => setDeleteConfirmId(null)}>
+                {t("common.cancel")}
+              </button>
+              <button className="rx-btn rx-btn-danger" onClick={() => handleDelete(deleteConfirmId)}>
+                {t("common.delete")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Template Edit/Create Modal */}
+      {templateModalOpen && (
+        <div className="rx-modal-overlay" onClick={closeTemplateModal}>
+          <div className="rx-modal rx-template-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="rx-modal-header">
+              <h3 className="rx-modal-title">
+                {editingTemplate ? t("prescriptionsPage.editTemplate") : t("prescriptionsPage.createTemplate")}
+              </h3>
+              <button className="rx-btn rx-btn-sm" onClick={closeTemplateModal}>
+                {t("common.close")}
+              </button>
+            </div>
+
+            <div className="rx-modal-body">
+              {templateLoading ? (
+                <div style={{ padding: 32, textAlign: "center", color: "var(--muted)" }}>
+                  {t("common.loading")}
+                </div>
+              ) : (
+              <div className="rx-template-form">
+                <div className="rx-form-row">
+                  <div className="rx-form-group">
+                    <label className="rx-label">{t("prescriptionsPage.templateNameEn")}</label>
+                    <input
+                      type="text"
+                      value={templateForm.name}
+                      onChange={(e) => handleTemplateFormChange("name", e.target.value)}
+                      placeholder={t("prescriptionsPage.templateNamePlaceholder")}
+                    />
+                  </div>
+                  <div className="rx-form-group">
+                    <label className="rx-label">{t("prescriptionsPage.templateNameFr")}</label>
+                    <input
+                      type="text"
+                      value={templateForm.name_fr}
+                      onChange={(e) => handleTemplateFormChange("name_fr", e.target.value)}
+                      placeholder={t("prescriptionsPage.templateNameFrPlaceholder")}
+                    />
+                  </div>
+                </div>
+
+                <div className="rx-form-row">
+                  <div className="rx-form-group">
+                    <label className="rx-label">{t("prescriptionsPage.descriptionEn")}</label>
+                    <input
+                      type="text"
+                      value={templateForm.description}
+                      onChange={(e) => handleTemplateFormChange("description", e.target.value)}
+                      placeholder={t("prescriptionsPage.descriptionPlaceholder")}
+                    />
+                  </div>
+                  <div className="rx-form-group">
+                    <label className="rx-label">{t("prescriptionsPage.descriptionFr")}</label>
+                    <input
+                      type="text"
+                      value={templateForm.description_fr}
+                      onChange={(e) => handleTemplateFormChange("description_fr", e.target.value)}
+                      placeholder={t("prescriptionsPage.descriptionFrPlaceholder")}
+                    />
+                  </div>
+                </div>
+
+                <div className="rx-template-items-section">
+                  <div className="rx-template-items-header">
+                    <label className="rx-label">{t("prescriptions.medications")}</label>
+                    <button type="button" className="rx-btn rx-btn-sm" onClick={addTemplateItem}>
+                      + {t("prescriptionsPage.addMedication")}
+                    </button>
+                  </div>
+
+                  {templateForm.items.map((item, idx) => (
+                    <div key={idx} className="rx-template-item-form">
+                      <div className="rx-template-item-form-header">
+                        <span className="rx-custom-item-number">{idx + 1}</span>
+                        {templateForm.items.length > 1 && (
+                          <button
+                            type="button"
+                            className="rx-btn rx-btn-sm rx-btn-danger"
+                            onClick={() => removeTemplateItem(idx)}
+                          >
+                            {t("common.delete")}
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="rx-template-item-form-grid">
+                        <div className="rx-form-group">
+                          <label className="rx-label">{t("prescriptionsPage.medication")}</label>
+                          <div className="rx-medication-select-row">
+                            <select
+                              value={item.medication}
+                              onChange={(e) => handleTemplateItemChange(idx, "medication", e.target.value)}
+                              disabled={medicationsLoading}
+                            >
+                              <option value="">{t("prescriptionsPage.selectMedication")}</option>
+                              {medications.map((med) => (
+                                <option key={med.id} value={med.id}>
+                                  {getMedDisplay(med)}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              className="rx-btn rx-btn-sm rx-btn-new-med"
+                              onClick={openNewMedModal}
+                              title={t("prescriptionsPage.createMedication")}
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="rx-form-group">
+                          <label className="rx-label">{t("prescriptions.dosage")}</label>
+                          <input
+                            type="text"
+                            value={item.dosage}
+                            onChange={(e) => handleTemplateItemChange(idx, "dosage", e.target.value)}
+                            placeholder={t("prescriptionsPage.dosagePlaceholder")}
+                          />
+                        </div>
+
+                        <div className="rx-form-group">
+                          <label className="rx-label">{t("prescriptionsPage.route")}</label>
+                          <select
+                            value={item.route}
+                            onChange={(e) => handleTemplateItemChange(idx, "route", e.target.value)}
+                          >
+                            <option value="">{t("prescriptionsPage.selectRoute")}</option>
+                            <option value="oral">{t("prescriptionsPage.routes.oral")}</option>
+                            <option value="topical">{t("prescriptionsPage.routes.topical")}</option>
+                            <option value="inhalation">{t("prescriptionsPage.routes.inhalation")}</option>
+                            <option value="injection">{t("prescriptionsPage.routes.injection")}</option>
+                            <option value="sublingual">{t("prescriptionsPage.routes.sublingual")}</option>
+                            <option value="rectal">{t("prescriptionsPage.routes.rectal")}</option>
+                            <option value="ophthalmic">{t("prescriptionsPage.routes.ophthalmic")}</option>
+                            <option value="otic">{t("prescriptionsPage.routes.otic")}</option>
+                            <option value="nasal">{t("prescriptionsPage.routes.nasal")}</option>
+                          </select>
+                        </div>
+
+                        <div className="rx-form-group">
+                          <label className="rx-label">{t("prescriptions.frequency")}</label>
+                          <input
+                            type="text"
+                            value={item.frequency}
+                            onChange={(e) => handleTemplateItemChange(idx, "frequency", e.target.value)}
+                            placeholder={t("prescriptionsPage.frequencyPlaceholder")}
+                          />
+                        </div>
+
+                        <div className="rx-form-group">
+                          <label className="rx-label">{t("prescriptions.duration")}</label>
+                          <input
+                            type="text"
+                            value={item.duration}
+                            onChange={(e) => handleTemplateItemChange(idx, "duration", e.target.value)}
+                            placeholder={t("prescriptionsPage.durationPlaceholder")}
+                          />
+                        </div>
+
+                        <div className="rx-form-group">
+                          <label className="rx-label">{t("prescriptions.instructions")}</label>
+                          <input
+                            type="text"
+                            value={item.instructions}
+                            onChange={(e) => handleTemplateItemChange(idx, "instructions", e.target.value)}
+                            placeholder={t("prescriptionsPage.instructionsPlaceholder")}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              )}
+            </div>
+
+            <div className="rx-modal-footer">
+              {editingTemplate && (
+                <button
+                  className="rx-btn rx-btn-danger"
+                  onClick={handleDeleteTemplate}
+                  disabled={templateDeleting || templateSaving}
+                >
+                  {templateDeleting ? t("common.deleting") : t("common.delete")}
+                </button>
+              )}
+              <div style={{ flex: 1 }} />
+              <button className="rx-btn" onClick={closeTemplateModal} disabled={templateSaving}>
+                {t("common.cancel")}
+              </button>
+              <button
+                className="rx-btn rx-btn-primary"
+                onClick={handleSaveTemplate}
+                disabled={templateSaving || templateDeleting}
+              >
+                {templateSaving ? t("common.saving") : t("common.save")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Medication Modal */}
+      {newMedModalOpen && (
+        <div className="rx-modal-overlay" onClick={closeNewMedModal}>
+          <div className="rx-modal rx-new-med-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="rx-modal-header">
+              <h3 className="rx-modal-title">{t("prescriptionsPage.createMedication")}</h3>
+              <button className="rx-btn rx-btn-sm" onClick={closeNewMedModal}>
+                {t("common.close")}
+              </button>
+            </div>
+
+            <div className="rx-modal-body">
+              <div className="rx-form-group">
+                <label className="rx-label">{t("prescriptionsPage.medName")} *</label>
+                <input
+                  type="text"
+                  value={newMedForm.name}
+                  onChange={(e) => setNewMedForm({ ...newMedForm, name: e.target.value })}
+                  placeholder={t("prescriptionsPage.medNamePlaceholder")}
+                />
+              </div>
+
+              <div className="rx-form-group">
+                <label className="rx-label">{t("prescriptionsPage.medStrength")}</label>
+                <input
+                  type="text"
+                  value={newMedForm.strength}
+                  onChange={(e) => setNewMedForm({ ...newMedForm, strength: e.target.value })}
+                  placeholder={t("prescriptionsPage.medStrengthPlaceholder")}
+                />
+              </div>
+
+              <div className="rx-form-group">
+                <label className="rx-label">{t("prescriptionsPage.medForm")}</label>
+                <input
+                  type="text"
+                  value={newMedForm.form}
+                  onChange={(e) => setNewMedForm({ ...newMedForm, form: e.target.value })}
+                  placeholder={t("prescriptionsPage.medFormPlaceholder")}
+                />
+              </div>
+            </div>
+
+            <div className="rx-modal-footer">
+              <button className="rx-btn" onClick={closeNewMedModal} disabled={newMedSaving}>
+                {t("common.cancel")}
+              </button>
+              <button
+                className="rx-btn rx-btn-primary"
+                onClick={handleSaveNewMedication}
+                disabled={newMedSaving}
+              >
+                {newMedSaving ? t("common.saving") : t("common.save")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
-const th = {
-  textAlign: "left",
-  padding: "12px 12px",
-  fontSize: 13,
-  color: "var(--muted)",
-  borderBottom: "1px solid var(--border)",
-  whiteSpace: "nowrap",
-  fontWeight: 900,
-};
-
-const td = {
-  padding: "12px 12px",
-  verticalAlign: "top",
-  color: "var(--text)",
-};

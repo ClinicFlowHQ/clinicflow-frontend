@@ -101,15 +101,16 @@ function pickFilenameFromHeaders(headers, fallback = "prescription.pdf") {
   }
 }
 
-export async function downloadPrescriptionPdf(prescriptionId) {
+export async function downloadPrescriptionPdf(prescriptionId, lang = "fr") {
   const res = await api.get(`/api/prescriptions/${prescriptionId}/pdf/`, {
+    params: { lang },
     responseType: "blob",
   });
 
   const blob = new Blob([res.data], { type: "application/pdf" });
   const url = window.URL.createObjectURL(blob);
 
-  const filename = pickFilenameFromHeaders(res.headers, `prescription_${prescriptionId}.pdf`);
+  const filename = pickFilenameFromHeaders(res.headers, `ordonnance_${prescriptionId}.pdf`);
 
   const a = document.createElement("a");
   a.href = url;

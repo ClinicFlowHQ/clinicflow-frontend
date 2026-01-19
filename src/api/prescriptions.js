@@ -29,6 +29,21 @@ export async function getPrescriptionTemplateDetail(templateId) {
   return res.data;
 }
 
+export async function createPrescriptionTemplate(payload) {
+  const res = await api.post("/api/prescriptions/templates/", payload);
+  return res.data;
+}
+
+export async function updatePrescriptionTemplate(templateId, payload) {
+  const res = await api.put(`/api/prescriptions/templates/${templateId}/`, payload);
+  return res.data;
+}
+
+export async function deletePrescriptionTemplate(templateId) {
+  const res = await api.delete(`/api/prescriptions/templates/${templateId}/`);
+  return res.data;
+}
+
 // -------- Prescriptions (instances) --------
 export async function getPrescriptions({ page = 1, pageSize = 10, search = "", visitId = null } = {}) {
   const res = await api.get("/api/prescriptions/", {
@@ -66,14 +81,16 @@ export async function deletePrescription(prescriptionId) {
 
 // PDF URL helper (debug / copy-paste in backend tools).
 // ⚠️ Opening this URL directly in a browser will NOT include JWT => 401.
-export function getPrescriptionPdfUrl(prescriptionId) {
+export function getPrescriptionPdfUrl(prescriptionId, lang = "fr") {
   const base = import.meta.env.VITE_API_URL;
-  return `${base}/api/prescriptions/${prescriptionId}/pdf/`;
+  return `${base}/api/prescriptions/${prescriptionId}/pdf/?lang=${lang}`;
 }
 
 // ✅ Use this in the frontend button (it sends Authorization header)
-export async function downloadPrescriptionPdf(prescriptionId) {
+// Pass lang parameter ("fr" or "en") to generate PDF in that language
+export async function downloadPrescriptionPdf(prescriptionId, lang = "fr") {
   const res = await api.get(`/api/prescriptions/${prescriptionId}/pdf/`, {
+    params: { lang },
     responseType: "blob",
   });
 

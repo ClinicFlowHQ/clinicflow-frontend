@@ -10,6 +10,7 @@ import VisitDetail from "./pages/VisitDetail";
 import Visits from "./pages/Visits";
 import Prescriptions from "./pages/Prescriptions";
 import Appointments from "./pages/Appointments";
+import Profile from "./pages/Profile";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import DashboardLayout from "./layouts/DashboardLayout";
@@ -45,6 +46,9 @@ export default function App() {
 
         {/* Appointments */}
         <Route path="/appointments" element={<Appointments />} />
+
+        {/* Profile */}
+        <Route path="/profile" element={<Profile />} />
       </Route>
 
       {/* Fallback */}
