@@ -396,6 +396,7 @@
     "loadError": "Failed to load profile. Please try again.",
     "updateSuccess": "Profile updated successfully.",
     "updateError": "Failed to update profile. Please try again.",
+    "emailRequired": "Email address is required.",
     "passwordSuccess": "Password changed successfully.",
     "passwordError": "Failed to change password. Please try again.",
     "roles": {

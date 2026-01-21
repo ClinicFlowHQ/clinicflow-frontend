@@ -140,15 +140,47 @@ export default function Profile() {
     setError("");
     setSuccess("");
 
+    // Validate required fields
+    if (!formData.email || !formData.email.trim()) {
+      setError(t("profile.emailRequired"));
+      setSaving(false);
+      return;
+    }
+
     try {
-      const data = await updateProfile(formData);
+      // Filter out empty/blank values (except email which is required)
+      const filteredData = Object.fromEntries(
+        Object.entries(formData).filter(([key, value]) =>
+          key === 'email' || (value !== "" && value !== null && value !== undefined)
+        )
+      );
+      const data = await updateProfile(filteredData);
       setUser(data);
       setEditMode(false);
       setSuccess(t("profile.updateSuccess"));
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      console.error("Failed to update profile:", err);
-      setError(err?.response?.data?.detail || t("profile.updateError"));
+      console.error("Failed to update profile:", err?.response?.data || err);
+      // Handle different error formats from the backend
+      const errorData = err?.response?.data;
+      if (errorData) {
+        if (typeof errorData === 'string') {
+          setError(errorData);
+        } else if (errorData.detail) {
+          setError(errorData.detail);
+        } else {
+          // Handle field-specific errors
+          const fieldErrors = Object.entries(errorData)
+            .map(([field, messages]) => {
+              const msgList = Array.isArray(messages) ? messages : [messages];
+              return `${field}: ${msgList.join(', ')}`;
+            })
+            .join('; ');
+          setError(fieldErrors || t("profile.updateError"));
+        }
+      } else {
+        setError(t("profile.updateError"));
+      }
     } finally {
       setSaving(false);
     }

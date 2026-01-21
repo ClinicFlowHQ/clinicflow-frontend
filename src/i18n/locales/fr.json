@@ -396,6 +396,7 @@
     "loadError": "Échec du chargement du profil. Veuillez réessayer.",
     "updateSuccess": "Profil mis à jour avec succès.",
     "updateError": "Échec de la mise à jour du profil. Veuillez réessayer.",
+    "emailRequired": "L'adresse email est requise.",
     "passwordSuccess": "Mot de passe modifié avec succès.",
     "passwordError": "Échec du changement de mot de passe. Veuillez réessayer.",
     "roles": {
