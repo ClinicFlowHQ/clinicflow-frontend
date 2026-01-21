@@ -99,7 +99,15 @@
     "noUpcomingAppointments": "No upcoming appointments",
     "loadError": "Failed to load patient details.",
     "updateSuccess": "Patient updated successfully.",
-    "updateError": "Failed to update patient."
+    "updateError": "Failed to update patient.",
+    "archivePatient": "Archive",
+    "restorePatient": "Restore",
+    "archived": "Archived",
+    "showArchived": "Show Archived",
+    "showingArchived": "Showing Archived",
+    "archivedPatientBanner": "This patient has been archived.",
+    "archiveConfirmTitle": "Archive Patient?",
+    "archiveConfirmMessage": "Are you sure you want to archive {{name}}? The patient will be hidden from the main list but their data will be preserved."
   },
   "visits": {
     "title": "Visits",

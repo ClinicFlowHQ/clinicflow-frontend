@@ -2,8 +2,9 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { getPatient, updatePatient } from "../api/patients";
+import { getPatient, updatePatient, archivePatient, restorePatient } from "../api/patients";
 import { api } from "../api/client";
+import { getProfile } from "../api/profile";
 
 // Icons
 const Icons = {
@@ -47,6 +48,16 @@ const Icons = {
       <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/>
     </svg>
   ),
+  Archive: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>
+    </svg>
+  ),
+  Restore: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="m12 7 4 5-4 5"/>
+    </svg>
+  ),
 };
 
 function calculateAge(dateOfBirth) {
@@ -81,6 +92,7 @@ export default function PatientDetail() {
   const [patient, setPatient] = useState(null);
   const [loading, setLoading] = useState(true);
   const [appointments, setAppointments] = useState([]);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // edit state
   const [editing, setEditing] = useState(false);
@@ -94,9 +106,21 @@ export default function PatientDetail() {
     address: "",
   });
 
+  // archive/restore state
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+
   async function load() {
     setLoading(true);
     try {
+      // Load user profile to check admin status
+      try {
+        const profile = await getProfile();
+        setIsAdmin(profile?.profile?.role === "admin");
+      } catch {
+        setIsAdmin(false);
+      }
+
       const data = await getPatient(id);
       setPatient(data);
       setForm({
@@ -155,6 +179,32 @@ export default function PatientDetail() {
     }
   }
 
+  async function handleArchive() {
+    setArchiving(true);
+    try {
+      await archivePatient(id);
+      navigate("/patients");
+    } catch (err) {
+      console.log("ARCHIVE PATIENT ERROR:", err?.response?.data || err);
+      setShowArchiveConfirm(false);
+    } finally {
+      setArchiving(false);
+    }
+  }
+
+  async function handleRestore() {
+    setArchiving(true);
+    try {
+      await restorePatient(id);
+      // Reload patient data to reflect restored status
+      await load();
+    } catch (err) {
+      console.log("RESTORE PATIENT ERROR:", err?.response?.data || err);
+    } finally {
+      setArchiving(false);
+    }
+  }
+
   if (loading) return <LoadingSkeleton />;
   if (!patient) return null;
 
@@ -175,6 +225,35 @@ export default function PatientDetail() {
         <Icons.ArrowLeft />
         {t("common.back")}
       </button>
+
+      {/* Archived Banner */}
+      {!patient.is_active && (
+        <div style={{
+          padding: "12px 16px", marginBottom: 20, borderRadius: 8,
+          background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.3)",
+          display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#d97706" }}>
+            <Icons.Archive />
+            <span style={{ fontWeight: 500 }}>{t("patients.archivedPatientBanner")}</span>
+          </div>
+          {isAdmin && (
+            <button
+              onClick={handleRestore}
+              disabled={archiving}
+              style={{
+                display: "flex", alignItems: "center", gap: 6, padding: "8px 16px",
+                borderRadius: 8, border: "none", background: "#22c55e", color: "white",
+                cursor: archiving ? "not-allowed" : "pointer", fontWeight: 600, fontSize: "0.8125rem",
+                opacity: archiving ? 0.7 : 1,
+              }}
+            >
+              <Icons.Restore />
+              {archiving ? t("common.loading") : t("patients.restorePatient")}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
@@ -211,18 +290,78 @@ export default function PatientDetail() {
           </div>
         </div>
 
-        <button
-          onClick={() => setEditing(!editing)}
-          style={{
-            display: "flex", alignItems: "center", gap: 8, padding: "10px 20px",
-            borderRadius: 8, border: "none", background: "var(--accent)", color: "white",
-            cursor: "pointer", fontWeight: 600, fontSize: "0.875rem",
-          }}
-        >
-          <Icons.Edit />
-          {t("patients.editPatient")}
-        </button>
+        <div style={{ display: "flex", gap: 12 }}>
+          {patient.is_active && (
+            <>
+              <button
+                onClick={() => setEditing(!editing)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "10px 20px",
+                  borderRadius: 8, border: "none", background: "var(--accent)", color: "white",
+                  cursor: "pointer", fontWeight: 600, fontSize: "0.875rem",
+                }}
+              >
+                <Icons.Edit />
+                {t("patients.editPatient")}
+              </button>
+              <button
+                onClick={() => setShowArchiveConfirm(true)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "10px 20px",
+                  borderRadius: 8, border: "1px solid rgba(239, 68, 68, 0.3)", background: "rgba(239, 68, 68, 0.1)",
+                  color: "#ef4444", cursor: "pointer", fontWeight: 600, fontSize: "0.875rem",
+                }}
+              >
+                <Icons.Archive />
+                {t("patients.archivePatient")}
+              </button>
+            </>
+          )}
+        </div>
       </div>
+
+      {/* Archive Confirmation Dialog */}
+      {showArchiveConfirm && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0, 0, 0, 0.5)", display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: "var(--card)", padding: 24, borderRadius: 16,
+            maxWidth: 400, width: "90%", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+          }}>
+            <h3 style={{ margin: "0 0 12px 0" }}>{t("patients.archiveConfirmTitle")}</h3>
+            <p style={{ color: "var(--muted)", margin: "0 0 20px 0", fontSize: "0.875rem" }}>
+              {t("patients.archiveConfirmMessage", { name: `${patient.first_name} ${patient.last_name}` })}
+            </p>
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setShowArchiveConfirm(false)}
+                disabled={archiving}
+                style={{
+                  padding: "10px 20px", borderRadius: 8, border: "1px solid var(--border)",
+                  background: "var(--card)", color: "var(--text)", cursor: "pointer",
+                  fontWeight: 500, fontSize: "0.875rem",
+                }}
+              >
+                {t("common.cancel")}
+              </button>
+              <button
+                onClick={handleArchive}
+                disabled={archiving}
+                style={{
+                  padding: "10px 20px", borderRadius: 8, border: "none",
+                  background: "#ef4444", color: "white", cursor: archiving ? "not-allowed" : "pointer",
+                  fontWeight: 600, fontSize: "0.875rem", opacity: archiving ? 0.7 : 1,
+                }}
+              >
+                {archiving ? t("common.loading") : t("patients.archivePatient")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit Form (modal-style) */}
       {editing && (

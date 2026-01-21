@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getPatients, createPatient } from "../api/patients";
+import { getProfile } from "../api/profile";
 
 // Icons
 const Icons = {
@@ -37,6 +38,11 @@ const Icons = {
       <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
     </svg>
   ),
+  Archive: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>
+    </svg>
+  ),
 };
 
 function TableSkeleton() {
@@ -59,9 +65,11 @@ export default function Patients() {
   const navigate = useNavigate();
   const { t } = useTranslation();
 
+  const [isAdmin, setIsAdmin] = useState(false);
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -78,10 +86,10 @@ export default function Patients() {
   const [address, setAddress] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  async function loadPatients(pageToLoad = page, q = query, size = pageSize) {
+  async function loadPatients(pageToLoad = page, q = query, size = pageSize, archived = showArchived) {
     setLoading(true);
     try {
-      const data = await getPatients({ page: pageToLoad, pageSize: size, search: q.trim() });
+      const data = await getPatients({ page: pageToLoad, pageSize: size, search: q.trim(), archived });
       setPatients(Array.isArray(data?.results) ? data.results : []);
       setCount(typeof data?.count === "number" ? data.count : 0);
       setHasNext(!!data?.next);
@@ -98,8 +106,14 @@ export default function Patients() {
     }
   }
 
-  useEffect(() => { loadPatients(1, query, pageSize); }, []);
-  useEffect(() => { loadPatients(1, query, pageSize); }, [pageSize]);
+  useEffect(() => {
+    // Load user profile to check admin status
+    getProfile()
+      .then((profile) => setIsAdmin(profile?.profile?.role === "admin"))
+      .catch(() => setIsAdmin(false));
+    loadPatients(1, query, pageSize, showArchived);
+  }, []);
+  useEffect(() => { loadPatients(1, query, pageSize, showArchived); }, [pageSize, showArchived]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -115,7 +129,7 @@ export default function Patients() {
       });
       setFirstName(""); setLastName(""); setSex("M"); setPhone(""); setDateOfBirth(""); setAddress("");
       setShowForm(false);
-      await loadPatients(1, query, pageSize);
+      await loadPatients(1, query, pageSize, showArchived);
     } catch (err) {
       alert("Failed to create patient: " + JSON.stringify(err?.response?.data || err, null, 2));
     } finally {
@@ -244,20 +258,36 @@ export default function Patients() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && loadPatients(1, query, pageSize)}
+            onKeyDown={(e) => e.key === "Enter" && loadPatients(1, query, pageSize, showArchived)}
             placeholder={t("patients.searchPlaceholder")}
             style={{ paddingLeft: 44 }}
           />
         </div>
-        <button onClick={() => loadPatients(1, query, pageSize)} style={{
+        <button onClick={() => loadPatients(1, query, pageSize, showArchived)} style={{
           padding: "10px 16px", borderRadius: 8, border: "1px solid var(--border)",
           background: "var(--card)", color: "var(--text)", cursor: "pointer", fontWeight: 500, fontSize: "0.875rem",
         }}>{t("common.search")}</button>
         {query && (
-          <button onClick={() => { setQuery(""); loadPatients(1, "", pageSize); }} style={{
+          <button onClick={() => { setQuery(""); loadPatients(1, "", pageSize, showArchived); }} style={{
             padding: "10px 16px", borderRadius: 8, border: "1px solid var(--border)",
             background: "var(--card)", color: "var(--muted)", cursor: "pointer", fontWeight: 500, fontSize: "0.875rem",
           }}>{t("common.clear")}</button>
+        )}
+        {/* Archived toggle - only visible to admins */}
+        {isAdmin && (
+          <button
+            onClick={() => setShowArchived(!showArchived)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", borderRadius: 8,
+              border: showArchived ? "1px solid rgba(245, 158, 11, 0.5)" : "1px solid var(--border)",
+              background: showArchived ? "rgba(245, 158, 11, 0.1)" : "var(--card)",
+              color: showArchived ? "#d97706" : "var(--text)",
+              cursor: "pointer", fontWeight: 500, fontSize: "0.875rem",
+            }}
+          >
+            <Icons.Archive />
+            {showArchived ? t("patients.showingArchived") : t("patients.showArchived")}
+          </button>
         )}
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>{t("common.perPage")}:</span>
@@ -308,9 +338,19 @@ export default function Patients() {
                       </span>
                     </td>
                     <td style={tdStyle}>
-                      <Link to={`/patients/${p.id}`} style={{ color: "var(--link)", fontWeight: 600, textDecoration: "none" }}>
-                        {p.first_name} {p.last_name}
-                      </Link>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <Link to={`/patients/${p.id}`} style={{ color: "var(--link)", fontWeight: 600, textDecoration: "none" }}>
+                          {p.first_name} {p.last_name}
+                        </Link>
+                        {!p.is_active && (
+                          <span style={{
+                            display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 9999,
+                            fontSize: "0.6875rem", fontWeight: 600, background: "rgba(245, 158, 11, 0.1)", color: "#d97706",
+                          }}>
+                            {t("patients.archived")}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={tdStyle}>
                       <span style={{
@@ -343,11 +383,11 @@ export default function Patients() {
       {!loading && filteredPatients.length > 0 && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 16, padding: "12px 0", flexWrap: "wrap", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button disabled={!hasPrev} onClick={() => loadPatients(page - 1, query, pageSize)}
+            <button disabled={!hasPrev} onClick={() => loadPatients(page - 1, query, pageSize, showArchived)}
               style={{ ...pagerBtnStyle, opacity: hasPrev ? 1 : 0.5, cursor: hasPrev ? "pointer" : "not-allowed" }}>
               <Icons.ChevronLeft /> {t("common.previous")}
             </button>
-            <button disabled={!hasNext} onClick={() => loadPatients(page + 1, query, pageSize)}
+            <button disabled={!hasNext} onClick={() => loadPatients(page + 1, query, pageSize, showArchived)}
               style={{ ...pagerBtnStyle, opacity: hasNext ? 1 : 0.5, cursor: hasNext ? "pointer" : "not-allowed" }}>
               {t("common.next")} <Icons.ChevronRight />
             </button>
@@ -355,7 +395,7 @@ export default function Patients() {
           <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
             {t("common.page")} {page} {t("common.of")} {totalPages}
           </span>
-          <button onClick={() => loadPatients(page, query, pageSize)} style={{ ...pagerBtnStyle, gap: 6 }}>
+          <button onClick={() => loadPatients(page, query, pageSize, showArchived)} style={{ ...pagerBtnStyle, gap: 6 }}>
             <Icons.Refresh /> {t("common.refresh")}
           </button>
         </div>

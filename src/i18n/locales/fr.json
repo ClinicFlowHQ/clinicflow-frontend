@@ -99,7 +99,15 @@
     "noUpcomingAppointments": "Aucun rendez-vous à venir",
     "loadError": "Échec du chargement des détails du patient.",
     "updateSuccess": "Patient mis à jour avec succès.",
-    "updateError": "Échec de la mise à jour du patient."
+    "updateError": "Échec de la mise à jour du patient.",
+    "archivePatient": "Archiver",
+    "restorePatient": "Restaurer",
+    "archived": "Archivé",
+    "showArchived": "Afficher les archivés",
+    "showingArchived": "Archivés affichés",
+    "archivedPatientBanner": "Ce patient a été archivé.",
+    "archiveConfirmTitle": "Archiver le patient ?",
+    "archiveConfirmMessage": "Êtes-vous sûr de vouloir archiver {{name}} ? Le patient sera masqué de la liste principale mais ses données seront conservées."
   },
   "visits": {
     "title": "Visites",
