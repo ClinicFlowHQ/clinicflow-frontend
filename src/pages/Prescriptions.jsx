@@ -338,8 +338,8 @@ export default function Prescriptions() {
     const p = String(patientId).trim();
     const v = String(visitId).trim();
 
-    // Need either a patient or a visit
-    if (!p && !v) {
+    // Patient is required
+    if (!p) {
       setMessage({ type: "error", text: t("prescriptionsPage.selectPatientOrVisitError") });
       return;
     }
