@@ -45,13 +45,14 @@ export async function deletePrescriptionTemplate(templateId) {
 }
 
 // -------- Prescriptions (instances) --------
-export async function getPrescriptions({ page = 1, pageSize = 10, search = "", visitId = null } = {}) {
+export async function getPrescriptions({ page = 1, pageSize = 10, search = "", visitId = null, patientId = null } = {}) {
   const res = await api.get("/api/prescriptions/", {
     params: {
       page,
       page_size: pageSize,
       search: search || undefined,
       ...(visitId ? { visit: visitId } : {}),
+      ...(patientId ? { patient: patientId } : {}),
     },
   });
   return res.data;

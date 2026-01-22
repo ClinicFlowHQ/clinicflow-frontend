@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getPatient } from "../api/patients";
 import { createVisit, getVisits, deleteVisit } from "../api/visits";
+import { formatDateTime } from "../utils/dateFormat";
 
 export default function PatientVisits() {
   const { id } = useParams(); // patient id
@@ -376,13 +377,6 @@ export default function PatientVisits() {
       </div>
     </div>
   );
-}
-
-function formatDateTime(value) {
-  if (!value) return "-";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleString();
 }
 
 function formatVisitType(value, t) {

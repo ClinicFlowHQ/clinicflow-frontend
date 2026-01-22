@@ -21,10 +21,17 @@ import {
   getMedications,
   createMedication,
 } from "../api/prescriptions";
+import { formatDateTime } from "../utils/dateFormat";
 
 function useQuery() {
   const { search } = useLocation();
   return useMemo(() => new URLSearchParams(search), [search]);
+}
+
+// Get patient name display
+function getPatientDisplay(p) {
+  if (!p) return "";
+  return `${p.first_name || ""} ${p.last_name || ""}`.trim() || `Patient #${p.id}`;
 }
 
 // Best-effort patient/visit label extraction
@@ -82,6 +89,7 @@ export default function Prescriptions() {
   const currentLang = i18n.language?.split("-")[0] || "en";
 
   const visitFromQuery = query.get("visit");
+  const patientFromQuery = query.get("patient");
 
   // Templates
   const [templates, setTemplates] = useState([]);
@@ -99,7 +107,8 @@ export default function Prescriptions() {
   const [medications, setMedications] = useState([]);
   const [medicationsLoading, setMedicationsLoading] = useState(false);
 
-  // Visit picker
+  // Patient and visit picker
+  const [patientId, setPatientId] = useState(patientFromQuery ? String(patientFromQuery) : "");
   const [visitId, setVisitId] = useState(visitFromQuery ? String(visitFromQuery) : "");
   const [visits, setVisits] = useState([]);
   const [visitsLoading, setVisitsLoading] = useState(false);
@@ -326,9 +335,12 @@ export default function Prescriptions() {
   async function handleSave() {
     setMessage({ type: "", text: "" });
 
+    const p = String(patientId).trim();
     const v = String(visitId).trim();
-    if (!v) {
-      setMessage({ type: "error", text: t("prescriptionsPage.selectVisitError") });
+
+    // Need either a patient or a visit
+    if (!p && !v) {
+      setMessage({ type: "error", text: t("prescriptionsPage.selectPatientOrVisitError") });
       return;
     }
 
@@ -378,7 +390,8 @@ export default function Prescriptions() {
     setIsSaving(true);
     try {
       const payload = {
-        visit: Number(v),
+        patient: p ? Number(p) : undefined,
+        visit: v ? Number(v) : undefined,
         template_used: isCustomMode ? null : selectedTemplateId,
         notes: notes || "",
         items: itemsPayload,
@@ -389,7 +402,7 @@ export default function Prescriptions() {
 
       await loadSavedPrescriptions();
 
-      if (visitFromQuery) setTimeout(() => navigate(-1), 250);
+      if (visitFromQuery || patientFromQuery) setTimeout(() => navigate(-1), 250);
     } catch {
       setMessage({ type: "error", text: t("prescriptionsPage.createError") });
     } finally {
@@ -405,6 +418,7 @@ export default function Prescriptions() {
     setNotes("");
     setMessage({ type: "", text: "" });
     if (!visitFromQuery) setVisitId("");
+    if (!patientFromQuery) setPatientId("");
   }
 
   async function handleDownloadPdf(rxId) {
@@ -750,9 +764,39 @@ export default function Prescriptions() {
 
           <div className="rx-card-body">
             <div style={{ display: "grid", gap: 16 }}>
-              {/* Visit selector */}
+              {/* Patient selector */}
               <div className="rx-form-group">
-                <label className="rx-label">{t("prescriptionsPage.visit")}</label>
+                <label className="rx-label">{t("prescriptionsPage.patient")} *</label>
+                {patientFromQuery ? (
+                  <input
+                    value={patients.find(p => String(p.id) === patientFromQuery)
+                      ? getPatientDisplay(patients.find(p => String(p.id) === patientFromQuery))
+                      : `Patient #${patientFromQuery}`}
+                    disabled
+                    style={{ opacity: 0.7 }}
+                  />
+                ) : (
+                  <select
+                    value={patientId}
+                    onChange={(e) => setPatientId(e.target.value)}
+                    disabled={patientsLoading}
+                  >
+                    <option value="">{t("prescriptionsPage.selectPatient")}</option>
+                    {patients.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {getPatientDisplay(p)} ({p.patient_code || `#${p.id}`})
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <span className="rx-help">
+                  {patientFromQuery ? t("prescriptionsPage.linkedFromPatient") : t("prescriptionsPage.pickPatient")}
+                </span>
+              </div>
+
+              {/* Visit selector (optional) */}
+              <div className="rx-form-group">
+                <label className="rx-label">{t("prescriptionsPage.visit")} ({t("common.optional")})</label>
                 {visitFromQuery ? (
                   <input value={visitId} disabled style={{ opacity: 0.7 }} />
                 ) : (
@@ -761,7 +805,7 @@ export default function Prescriptions() {
                     onChange={(e) => setVisitId(e.target.value)}
                     disabled={visitsLoading}
                   >
-                    <option value="">{t("prescriptionsPage.clickToChoose")}</option>
+                    <option value="">{t("prescriptionsPage.noVisit")}</option>
                     {visits.map((v) => (
                       <option key={v.id} value={v.id}>
                         {getVisitOptionLabel(v)}
@@ -770,7 +814,7 @@ export default function Prescriptions() {
                   </select>
                 )}
                 <span className="rx-help">
-                  {visitFromQuery ? t("prescriptionsPage.linkedFromVisit") : t("prescriptionsPage.pickVisit")}
+                  {visitFromQuery ? t("prescriptionsPage.linkedFromVisit") : t("prescriptionsPage.pickVisitOptional")}
                 </span>
               </div>
 
@@ -1000,7 +1044,7 @@ export default function Prescriptions() {
                       const vId = getVisitIdFromRx(rx);
                       const patientLabel = getPatientLabelFromRx(rx);
                       const createdAt = rx?.created_at ?? rx?.created ?? rx?.createdAt ?? null;
-                      const createdLabel = createdAt ? new Date(createdAt).toLocaleString() : "-";
+                      const createdLabel = formatDateTime(createdAt);
 
                       return (
                         <tr key={String(rxId)}>
@@ -1104,7 +1148,7 @@ export default function Prescriptions() {
               <div className="rx-detail-section">
                 <div className="rx-detail-label">{t("prescriptionsPage.created")}</div>
                 <div className="rx-detail-value">
-                  {viewRx.created_at ? new Date(viewRx.created_at).toLocaleString() : "-"}
+                  {formatDateTime(viewRx.created_at)}
                 </div>
               </div>
             </div>

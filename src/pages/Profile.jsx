@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getProfile, updateProfile, changePassword } from "../api/profile";
 import { api } from "../api/client";
+import { formatDateLong } from "../utils/dateFormat";
 
 // Role badge colors
 const roleColors = {
@@ -548,7 +549,7 @@ export default function Profile() {
                 <InfoItem icon={<Icons.Badge />} label={t("profile.licenseNumber")} value={user?.profile?.license_number || "-"} />
               </>
             )}
-            <InfoItem icon={<Icons.Calendar />} label={t("profile.memberSince")} value={formatDate(user?.date_joined)} />
+            <InfoItem icon={<Icons.Calendar />} label={t("profile.memberSince")} value={formatDateLong(user?.date_joined)} />
             {user?.profile?.bio && (
               <div style={{ gridColumn: "1 / -1" }}>
                 <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.8125rem", marginBottom: 4 }}>
@@ -786,13 +787,6 @@ function InfoItem({ icon, label, value }) {
       </div>
     </div>
   );
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return "-";
-  const date = new Date(dateStr);
-  if (isNaN(date.getTime())) return "-";
-  return date.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
 }
 
 const labelStyle = {

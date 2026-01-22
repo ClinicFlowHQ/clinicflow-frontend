@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../api/client";
+import { formatDateTime } from "../utils/dateFormat";
 
 // Icons
 const Icons = {
@@ -215,7 +216,19 @@ export default function Appointments() {
       const detail = e?.response?.data;
       console.log("CREATE APPOINTMENT ERROR:", detail || e);
       if (detail && typeof detail === "object") {
-        setError(JSON.stringify(detail, null, 2));
+        // Parse validation errors into readable messages
+        const messages = [];
+        for (const [field, errors] of Object.entries(detail)) {
+          const errorList = Array.isArray(errors) ? errors : [errors];
+          for (const err of errorList) {
+            if (field === "scheduled_at" && err.includes("past")) {
+              messages.push(t("appointments.cannotBeInPast"));
+            } else {
+              messages.push(`${field}: ${err}`);
+            }
+          }
+        }
+        setError(messages.join("\n") || t("appointments.createFailed"));
       } else {
         setError(t("appointments.createFailed"));
       }
@@ -260,7 +273,22 @@ export default function Appointments() {
     } catch (e) {
       const detail = e?.response?.data;
       console.log("UPDATE APPOINTMENT ERROR:", detail || e);
-      setError(detail ? JSON.stringify(detail, null, 2) : t("appointments.updateFailed"));
+      if (detail && typeof detail === "object") {
+        const messages = [];
+        for (const [field, errors] of Object.entries(detail)) {
+          const errorList = Array.isArray(errors) ? errors : [errors];
+          for (const err of errorList) {
+            if (field === "scheduled_at" && err.includes("past")) {
+              messages.push(t("appointments.cannotBeInPast"));
+            } else {
+              messages.push(`${field}: ${err}`);
+            }
+          }
+        }
+        setError(messages.join("\n") || t("appointments.updateFailed"));
+      } else {
+        setError(t("appointments.updateFailed"));
+      }
     } finally {
       setSaving(false);
     }
@@ -642,7 +670,7 @@ export default function Appointments() {
                         </div>
                       </td>
                       <td style={tdStyle}>
-                        {a.scheduled_at ? new Date(a.scheduled_at).toLocaleString() : "-"}
+                        {formatDateTime(a.scheduled_at)}
                       </td>
                       <td style={tdStyle}>
                         <span style={{

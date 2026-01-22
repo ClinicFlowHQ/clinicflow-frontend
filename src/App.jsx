@@ -1,5 +1,7 @@
 // src/App.jsx
+import { useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -16,6 +18,15 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import DashboardLayout from "./layouts/DashboardLayout";
 
 export default function App() {
+  const { i18n } = useTranslation();
+
+  // Sync document language with i18n for proper date/time input formatting
+  // Using "en-GB" for English ensures 24-hour format and DD/MM/YYYY
+  useEffect(() => {
+    const lang = i18n.language?.startsWith("fr") ? "fr-FR" : "en-GB";
+    document.documentElement.lang = lang;
+  }, [i18n.language]);
+
   return (
     <Routes>
       {/* Public */}

@@ -1,0 +1,67 @@
+// src/utils/dateFormat.js
+// Centralized date/time formatting for the entire application
+// Format: DD/MM/YYYY and 24-hour time
+
+/**
+ * Format a date as DD/MM/YYYY
+ * @param {Date|string|number} date - The date to format
+ * @returns {string} Formatted date string or "-" if invalid
+ */
+export function formatDate(date) {
+  if (!date) return "-";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "-";
+
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+
+  return `${day}/${month}/${year}`;
+}
+
+/**
+ * Format a time as HH:MM (24-hour)
+ * @param {Date|string|number} date - The date/time to format
+ * @returns {string} Formatted time string or "-" if invalid
+ */
+export function formatTime(date) {
+  if (!date) return "-";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "-";
+
+  const hours = String(d.getHours()).padStart(2, "0");
+  const minutes = String(d.getMinutes()).padStart(2, "0");
+
+  return `${hours}:${minutes}`;
+}
+
+/**
+ * Format a date and time as DD/MM/YYYY HH:MM (24-hour)
+ * @param {Date|string|number} date - The date/time to format
+ * @returns {string} Formatted datetime string or "-" if invalid
+ */
+export function formatDateTime(date) {
+  if (!date) return "-";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "-";
+
+  return `${formatDate(d)} ${formatTime(d)}`;
+}
+
+/**
+ * Format a date for display with month name (e.g., "15 January 2024")
+ * @param {Date|string|number} date - The date to format
+ * @param {string} locale - Locale for month name (default: "en-GB")
+ * @returns {string} Formatted date string or "-" if invalid
+ */
+export function formatDateLong(date, locale = "en-GB") {
+  if (!date) return "-";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "-";
+
+  return d.toLocaleDateString(locale, {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}

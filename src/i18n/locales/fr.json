@@ -25,7 +25,8 @@
     "close": "Fermer",
     "submit": "Soumettre",
     "required": "Obligatoire",
-    "back": "Retour"
+    "back": "Retour",
+    "optional": "optionnel"
   },
   "auth": {
     "login": "Connexion",
@@ -230,6 +231,12 @@
     "clickToChoose": "Cliquez pour choisir...",
     "linkedFromVisit": "Lié automatiquement depuis la visite.",
     "pickVisit": "Choisissez un ID de visite.",
+    "pickVisitOptional": "Lier optionnellement à une visite.",
+    "noVisit": "Pas de visite (autonome)",
+    "selectPatient": "Sélectionner un patient...",
+    "pickPatient": "Choisissez un patient.",
+    "linkedFromPatient": "Lié automatiquement depuis les détails du patient.",
+    "selectPatientOrVisitError": "Veuillez sélectionner un patient.",
     "editFreely": "Modifier librement (stocké dans les notes)",
     "writePrescription": "Écrivez l'ordonnance ici...",
     "savedPrescriptions": "Ordonnances enregistrées",
@@ -355,7 +362,8 @@
     "doctor": "Médecin",
     "selectDoctor": "Sélectionner un médecin...",
     "allDoctors": "Tous les médecins",
-    "filterByDoctor": "Filtrer par médecin"
+    "filterByDoctor": "Filtrer par médecin",
+    "cannotBeInPast": "Le rendez-vous ne peut pas être planifié dans le passé."
   },
   "language": {
     "select": "Langue",

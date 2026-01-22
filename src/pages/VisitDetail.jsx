@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { getPatient } from "../api/patients";
 import { createVitals, getVisit, getVitals, updateVisit, downloadPrescriptionPdf } from "../api/visits";
 import { getPrescriptions, unwrapListResults } from "../api/prescriptions";
+import { formatDateTime } from "../utils/dateFormat";
 
 export default function VisitDetail() {
   const { id, visitId } = useParams(); // id = patientId
@@ -508,7 +509,7 @@ export default function VisitDetail() {
                     <div>
                       <b>{t("visitDetail.prescriptionNumber", { id: rx.id })}</b>
                       <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 4 }}>
-                        {t("visitDetail.created")}: {rx.created_at ? new Date(rx.created_at).toLocaleString() : "-"}
+                        {t("visitDetail.created")}: {formatDateTime(rx.created_at)}
                       </div>
                     </div>
 
@@ -695,13 +696,6 @@ function Field({ labelText, value, onChange, placeholder }) {
 }
 
 /* ---------- formatting ---------- */
-
-function formatDateTime(value) {
-  if (!value) return "-";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleString();
-}
 
 function formatVisitType(value, t) {
   if (!value) return "-";

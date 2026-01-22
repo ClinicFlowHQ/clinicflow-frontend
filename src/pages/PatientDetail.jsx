@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { getPatient, updatePatient, archivePatient, restorePatient } from "../api/patients";
 import { api } from "../api/client";
 import { getProfile } from "../api/profile";
+import { formatDate, formatTime } from "../utils/dateFormat";
 
 // Icons
 const Icons = {
@@ -522,7 +523,7 @@ export default function PatientDetail() {
                 <Icons.Calendar />
                 <span>{t("patients.newAppointment")}</span>
               </Link>
-              <Link to={`/prescriptions`} style={actionCardStyle}>
+              <Link to={`/prescriptions?patient=${id}`} style={actionCardStyle}>
                 <Icons.FileText />
                 <span>{t("patients.createPrescription")}</span>
               </Link>
@@ -545,10 +546,10 @@ export default function PatientDetail() {
                   }}>
                     <div>
                       <div style={{ fontWeight: 500 }}>
-                        {appt.scheduled_at ? new Date(appt.scheduled_at).toLocaleDateString() : "-"}
+                        {formatDate(appt.scheduled_at)}
                       </div>
                       <div style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
-                        {appt.scheduled_at ? new Date(appt.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
+                        {formatTime(appt.scheduled_at)}
                         {appt.reason && ` - ${appt.reason}`}
                       </div>
                     </div>

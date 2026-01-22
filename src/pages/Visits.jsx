@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getPatients } from "../api/patients";
 import { getVisits } from "../api/visits";
+import { formatDateTime } from "../utils/dateFormat";
 
 export default function Visits() {
   const { t } = useTranslation();
@@ -210,13 +211,6 @@ export default function Visits() {
       ) : null}
     </div>
   );
-}
-
-function formatDateTime(value) {
-  if (!value) return "-";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleString();
 }
 
 const th = {

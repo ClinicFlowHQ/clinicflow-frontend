@@ -25,7 +25,8 @@
     "close": "Close",
     "submit": "Submit",
     "required": "Required",
-    "back": "Back"
+    "back": "Back",
+    "optional": "optional"
   },
   "auth": {
     "login": "Login",
@@ -230,6 +231,12 @@
     "clickToChoose": "Click to choose...",
     "linkedFromVisit": "Linked automatically from the visit.",
     "pickVisit": "Pick a visit ID.",
+    "pickVisitOptional": "Optionally link to a visit.",
+    "noVisit": "No visit (standalone)",
+    "selectPatient": "Select patient...",
+    "pickPatient": "Pick a patient.",
+    "linkedFromPatient": "Linked automatically from patient details.",
+    "selectPatientOrVisitError": "Please select a patient.",
     "editFreely": "Edit freely (stored in notes)",
     "writePrescription": "Write prescription here...",
     "savedPrescriptions": "Saved prescriptions",
@@ -355,7 +362,8 @@
     "doctor": "Doctor",
     "selectDoctor": "Select doctor...",
     "allDoctors": "All doctors",
-    "filterByDoctor": "Filter by doctor"
+    "filterByDoctor": "Filter by doctor",
+    "cannotBeInPast": "Appointment cannot be scheduled in the past."
   },
   "language": {
     "select": "Language",
