@@ -849,7 +849,7 @@ function AvailabilityCalendar({ t }) {
   async function loadAvailabilities() {
     setLoading(true);
     try {
-      const res = await api.get("/api/accounts/availability/", {
+      const res = await api.get("/api/auth/availability/", {
         params: { year, month: month + 1 }
       });
       const map = {};
@@ -871,7 +871,7 @@ function AvailabilityCalendar({ t }) {
   async function handleSetAvailability(date, slot) {
     setSaving(true);
     try {
-      await api.post("/api/accounts/availability/", { date, slot });
+      await api.post("/api/auth/availability/", { date, slot });
       await loadAvailabilities();
       setSelectedDate(null);
     } catch (err) {
@@ -884,7 +884,7 @@ function AvailabilityCalendar({ t }) {
   async function handleDeleteAvailability(date) {
     setSaving(true);
     try {
-      await api.delete(`/api/accounts/availability/?date=${date}`);
+      await api.delete(`/api/auth/availability/?date=${date}`);
       await loadAvailabilities();
       setSelectedDate(null);
     } catch (err) {
