@@ -1,5 +1,6 @@
 // src/pages/Appointments.jsx
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { api } from "../api/client";
 import { formatDateTime } from "../utils/dateFormat";
@@ -311,14 +312,24 @@ export default function Appointments() {
     }
   }
 
-  function renderPatientLabel(appt) {
+  function getPatientInfo(appt) {
     const pObj = appt.patient && typeof appt.patient === "object" ? appt.patient : null;
-    if (pObj) return `${pObj.first_name || ""} ${pObj.last_name || ""}`.trim() || `Patient #${pObj.id}`;
+    if (pObj) {
+      return {
+        id: pObj.id,
+        name: `${pObj.first_name || ""} ${pObj.last_name || ""}`.trim() || `Patient #${pObj.id}`,
+      };
+    }
 
     const pid = appt.patient != null ? String(appt.patient) : "";
     const p = pid ? patientById.get(pid) : null;
-    if (p) return `${p.first_name} ${p.last_name}`;
-    return pid ? `Patient #${pid}` : "-";
+    if (p) {
+      return {
+        id: p.id,
+        name: `${p.first_name} ${p.last_name}`,
+      };
+    }
+    return { id: pid || null, name: pid ? `Patient #${pid}` : "-" };
   }
 
   function renderDoctorLabel(appt) {
@@ -661,7 +672,25 @@ export default function Appointments() {
                         </span>
                       </td>
                       <td style={tdStyle}>
-                        <span style={{ fontWeight: 600 }}>{renderPatientLabel(a)}</span>
+                        {(() => {
+                          const patient = getPatientInfo(a);
+                          return patient.id ? (
+                            <Link
+                              to={`/patients/${patient.id}`}
+                              style={{
+                                fontWeight: 600,
+                                color: "var(--accent)",
+                                textDecoration: "none",
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.textDecoration = "underline"}
+                              onMouseLeave={(e) => e.currentTarget.style.textDecoration = "none"}
+                            >
+                              {patient.name}
+                            </Link>
+                          ) : (
+                            <span style={{ fontWeight: 600 }}>{patient.name}</span>
+                          );
+                        })()}
                       </td>
                       <td style={tdStyle}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>

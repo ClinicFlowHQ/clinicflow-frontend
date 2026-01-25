@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getPatient } from "../api/patients";
-import { createVitals, getVisit, getVitals, updateVisit, downloadPrescriptionPdf } from "../api/visits";
+import { createVitals, getVisit, getVitals, updateVisit, downloadPrescriptionPdf, downloadVisitSummaryPdf } from "../api/visits";
 import { getPrescriptions, unwrapListResults } from "../api/prescriptions";
 import { formatDateTime } from "../utils/dateFormat";
 
@@ -44,6 +44,9 @@ export default function VisitDetail() {
   const [rxError, setRxError] = useState("");
   const [prescriptions, setPrescriptions] = useState([]);
   const [rxDownloadingId, setRxDownloadingId] = useState(null);
+
+  // Visit summary PDF state
+  const [summaryDownloading, setSummaryDownloading] = useState(false);
 
   const [showVitalsForm, setShowVitalsForm] = useState(false);
 
@@ -247,6 +250,18 @@ export default function VisitDetail() {
     navigate(`/prescriptions?visit=${visitId}`);
   }
 
+  async function handleDownloadSummaryPdf() {
+    setSummaryDownloading(true);
+    try {
+      await downloadVisitSummaryPdf(visitId);
+    } catch (err) {
+      console.log("SUMMARY PDF DOWNLOAD ERROR:", err?.response?.data || err);
+      setError(t("visitDetail.summaryPdfError"));
+    } finally {
+      setSummaryDownloading(false);
+    }
+  }
+
   async function handleDownloadPdf(rxId) {
     setRxDownloadingId(rxId);
     try {
@@ -285,6 +300,15 @@ export default function VisitDetail() {
         </button>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button
+            onClick={handleDownloadSummaryPdf}
+            disabled={summaryDownloading}
+            style={btnPrimary}
+            title={t("visitDetail.printSummary")}
+          >
+            {summaryDownloading ? t("visitDetail.downloading") : t("visitDetail.printSummary")}
+          </button>
+
           <button onClick={goCreatePrescriptionLinked} style={btnPrimary}>
             + {t("visitDetail.createPrescription")}
           </button>

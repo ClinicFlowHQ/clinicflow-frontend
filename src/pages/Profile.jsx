@@ -90,6 +90,7 @@ export default function Profile() {
     specialization: "",
     license_number: "",
     department: "",
+    display_name: "",
     bio: "",
     clinic_address: "",
   });
@@ -122,6 +123,7 @@ export default function Profile() {
         specialization: data.profile?.specialization || "",
         license_number: data.profile?.license_number || "",
         department: data.profile?.department || "",
+        display_name: data.profile?.display_name || "",
         bio: data.profile?.bio || "",
         clinic_address: data.profile?.clinic_address || "",
       });
@@ -478,6 +480,19 @@ export default function Profile() {
                       placeholder={t("profile.licenseNumber")}
                     />
                   </div>
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <label style={labelStyle}>{t("profile.displayName")}</label>
+                    <input
+                      type="text"
+                      value={formData.display_name}
+                      onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
+                      style={inputStyle}
+                      placeholder={t("profile.displayNamePlaceholder")}
+                    />
+                    <p style={{ margin: "4px 0 0 0", fontSize: "0.75rem", color: "var(--muted)" }}>
+                      {t("profile.displayNameHint")}
+                    </p>
+                  </div>
                 </>
               )}
               <div style={{ gridColumn: "1 / -1" }}>
@@ -533,6 +548,7 @@ export default function Profile() {
                     specialization: user?.profile?.specialization || "",
                     license_number: user?.profile?.license_number || "",
                     department: user?.profile?.department || "",
+                    display_name: user?.profile?.display_name || "",
                     bio: user?.profile?.bio || "",
                     clinic_address: user?.profile?.clinic_address || "",
                   });
@@ -561,6 +577,9 @@ export default function Profile() {
               <>
                 <InfoItem icon={<Icons.Stethoscope />} label={t("profile.specialization")} value={user?.profile?.specialization || "-"} />
                 <InfoItem icon={<Icons.Badge />} label={t("profile.licenseNumber")} value={user?.profile?.license_number || "-"} />
+                {user?.profile?.display_name && (
+                  <InfoItem icon={<Icons.User />} label={t("profile.displayName")} value={user.profile.display_name} />
+                )}
               </>
             )}
             <InfoItem icon={<Icons.Calendar />} label={t("profile.memberSince")} value={formatDateLong(user?.date_joined)} />

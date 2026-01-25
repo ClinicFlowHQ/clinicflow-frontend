@@ -216,7 +216,9 @@
     "noVitalsRecordedYet": "Aucun signe vital enregistré.",
     "measured": "Mesuré",
     "temp": "Temp",
-    "showingLatest8": "Affichage des 8 derniers enregistrements."
+    "showingLatest8": "Affichage des 8 derniers enregistrements.",
+    "printSummary": "Imprimer résumé",
+    "summaryPdfError": "Échec du téléchargement du résumé de visite. Veuillez réessayer."
   },
   "prescriptions": {
     "title": "Ordonnances",
@@ -392,6 +394,9 @@
     "specialization": "Spécialisation",
     "specializationPlaceholder": "ex: Cardiologie, Pédiatrie",
     "licenseNumber": "Numéro de licence",
+    "displayName": "Nom d'affichage (pour documents)",
+    "displayNamePlaceholder": "ex: Dr MUKWAMU B. Justin",
+    "displayNameHint": "Ce nom apparaîtra sur les ordonnances et résumés de visite. Laissez vide pour utiliser votre prénom/nom.",
     "bio": "Biographie",
     "bioPlaceholder": "Parlez-nous de vous...",
     "clinicAddress": "Adresse du cabinet",

@@ -216,7 +216,9 @@
     "noVitalsRecordedYet": "No vitals recorded yet.",
     "measured": "Measured",
     "temp": "Temp",
-    "showingLatest8": "Showing latest 8 records."
+    "showingLatest8": "Showing latest 8 records.",
+    "printSummary": "Print Summary",
+    "summaryPdfError": "Failed to download visit summary. Please try again."
   },
   "prescriptions": {
     "title": "Prescriptions",
@@ -392,6 +394,9 @@
     "specialization": "Specialization",
     "specializationPlaceholder": "e.g., Cardiology, Pediatrics",
     "licenseNumber": "License Number",
+    "displayName": "Display Name (for documents)",
+    "displayNamePlaceholder": "e.g., Dr MUKWAMU B. Justin",
+    "displayNameHint": "This name will appear on prescriptions and visit summaries. Leave blank to use your first/last name.",
     "bio": "Bio",
     "bioPlaceholder": "Tell us about yourself...",
     "clinicAddress": "Clinic Address",

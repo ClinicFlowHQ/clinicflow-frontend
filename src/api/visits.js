@@ -121,3 +121,27 @@ export async function downloadPrescriptionPdf(prescriptionId, lang = "fr") {
 
   window.URL.revokeObjectURL(url);
 }
+
+/* -----------------------------
+ * Visit Summary PDF download
+ * ----------------------------- */
+
+export async function downloadVisitSummaryPdf(visitId) {
+  const res = await api.get(`/api/visits/${visitId}/pdf/`, {
+    responseType: "blob",
+  });
+
+  const blob = new Blob([res.data], { type: "application/pdf" });
+  const url = window.URL.createObjectURL(blob);
+
+  const filename = pickFilenameFromHeaders(res.headers, `resume_visite_${visitId}.pdf`);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  window.URL.revokeObjectURL(url);
+}
