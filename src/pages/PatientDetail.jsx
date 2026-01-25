@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { getPatient, updatePatient, archivePatient, restorePatient } from "../api/patients";
 import { api } from "../api/client";
 import { getProfile } from "../api/profile";
-import { formatDate, formatTime } from "../utils/dateFormat";
+import { formatDate, formatTime, formatDateTime } from "../utils/dateFormat";
 import PatientFiles from "../components/PatientFiles";
 import PatientPrescriptions from "../components/PatientPrescriptions";
 
@@ -480,7 +480,7 @@ export default function PatientDetail() {
             <h3 style={cardHeaderStyle}>{t("patients.personalInformation")}</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <InfoRow label={t("patients.patientCode")} value={patient.patient_code || "-"} mono />
-              <InfoRow label={t("patients.dateOfBirth")} value={patient.date_of_birth || "-"} />
+              <InfoRow label={t("patients.dateOfBirth")} value={formatDate(patient.date_of_birth)} />
               <InfoRow label={t("patients.age")} value={age !== null ? `${age} ${t("patients.years")}` : "-"} />
               <InfoRow label={t("patients.sex")} value={patient.sex === "M" ? t("patients.male") : t("patients.female")} />
             </div>
@@ -505,8 +505,13 @@ export default function PatientDetail() {
           <div style={cardStyle}>
             <h3 style={cardHeaderStyle}>{t("patients.medicalInfo")}</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <InfoRow label={t("patients.lastVisit")} value={patient.last_visit_date || "-"} />
-              <InfoRow label={t("patients.nextVisit")} value={patient.next_visit_date || "-"} />
+              <InfoRow
+                label={t("patients.lastVisit")}
+                value={formatDateTime(patient.last_visit_date)}
+                linkTo={patient.last_visit_id ? `/patients/${id}/visits/${patient.last_visit_id}` : null}
+              />
+              <InfoRow label={t("patients.nextVisit")} value={formatDateTime(patient.next_visit_date)} />
+              <InfoRow label={t("patients.weight")} value={patient.latest_weight_kg ? `${patient.latest_weight_kg} kg` : "-"} />
             </div>
           </div>
         </div>
@@ -580,19 +585,36 @@ export default function PatientDetail() {
   );
 }
 
-function InfoRow({ label, value, mono }) {
+function InfoRow({ label, value, mono, linkTo }) {
+  const valueStyle = {
+    fontWeight: 500,
+    fontFamily: mono ? "monospace" : "inherit",
+    background: mono ? "var(--surface)" : "transparent",
+    padding: mono ? "4px 8px" : 0,
+    borderRadius: mono ? 4 : 0,
+  };
+
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
       <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>{label}</span>
-      <span style={{
-        fontWeight: 500,
-        fontFamily: mono ? "monospace" : "inherit",
-        background: mono ? "var(--surface)" : "transparent",
-        padding: mono ? "4px 8px" : 0,
-        borderRadius: mono ? 4 : 0,
-      }}>
-        {value}
-      </span>
+      {linkTo ? (
+        <Link
+          to={linkTo}
+          style={{
+            ...valueStyle,
+            color: "var(--accent)",
+            textDecoration: "none",
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.textDecoration = "underline"}
+          onMouseLeave={(e) => e.currentTarget.style.textDecoration = "none"}
+        >
+          {value}
+        </Link>
+      ) : (
+        <span style={valueStyle}>
+          {value}
+        </span>
+      )}
     </div>
   );
 }

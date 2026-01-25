@@ -384,7 +384,21 @@ export default function PatientVisits() {
                       title={t("patientVisits.openVisit")}
                       onClick={() => navigate(`/patients/${id}/visits/${v.id}`)}
                     >
-                      <td style={td}>{formatDateTime(v.visit_date)}</td>
+                      <td style={td}>
+                        <Link
+                          to={`/patients/${id}/visits/${v.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            color: "var(--accent)",
+                            textDecoration: "none",
+                            fontWeight: 500,
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.textDecoration = "underline"}
+                          onMouseLeave={(e) => e.currentTarget.style.textDecoration = "none"}
+                        >
+                          {formatDateTime(v.visit_date)}
+                        </Link>
+                      </td>
                       <td style={td}>{formatVisitType(v.visit_type, t)}</td>
                       <td style={td}>{formatVitalsSummary(v?.vital_signs, t)}</td>
                       <td style={td}>{v.chief_complaint || "-"}</td>

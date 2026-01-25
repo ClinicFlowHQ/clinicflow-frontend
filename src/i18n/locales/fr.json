@@ -109,7 +109,8 @@
     "showingArchived": "Archivés affichés",
     "archivedPatientBanner": "Ce patient a été archivé.",
     "archiveConfirmTitle": "Archiver le patient ?",
-    "archiveConfirmMessage": "Êtes-vous sûr de vouloir archiver {{name}} ? Le patient sera masqué de la liste principale mais ses données seront conservées."
+    "archiveConfirmMessage": "Êtes-vous sûr de vouloir archiver {{name}} ? Le patient sera masqué de la liste principale mais ses données seront conservées.",
+    "weight": "Poids"
   },
   "visits": {
     "title": "Visites",
