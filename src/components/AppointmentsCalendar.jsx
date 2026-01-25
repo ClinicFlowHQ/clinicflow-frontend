@@ -262,6 +262,7 @@ export default function AppointmentsCalendar({
                 background: !dayInfo.isCurrentMonth ? "var(--surface)" : "transparent",
                 cursor: dayAppointments.length > 0 ? "pointer" : "default",
                 minHeight: 100,
+                overflow: "hidden",
                 transition: "background 150ms ease",
               }}
               onMouseEnter={(e) => {
@@ -296,8 +297,8 @@ export default function AppointmentsCalendar({
               </div>
 
               {/* Appointments */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                {dayAppointments.slice(0, 3).map((appt) => {
+              <div style={{ display: "flex", flexDirection: "column", gap: 2, overflow: "hidden" }}>
+                {dayAppointments.slice(0, 2).map((appt) => {
                   const style = getStatusStyle(appt.status);
                   const patient = getPatientInfo(appt);
                   return (
@@ -312,9 +313,10 @@ export default function AppointmentsCalendar({
                         color: style.color,
                         borderLeft: `3px solid ${style.borderColor}`,
                         overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        maxWidth: "100%",
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        lineHeight: "1.3",
                       }}
                     >
                       <span style={{ fontWeight: 600 }}>
@@ -327,14 +329,14 @@ export default function AppointmentsCalendar({
                     </div>
                   );
                 })}
-                {dayAppointments.length > 3 && (
+                {dayAppointments.length > 2 && (
                   <div style={{
                     padding: "2px 6px",
                     fontSize: "0.6875rem",
                     color: "var(--accent)",
                     fontWeight: 600,
                   }}>
-                    +{dayAppointments.length - 3} {t("common.more")}
+                    +{dayAppointments.length - 2} {t("common.more")}
                   </div>
                 )}
               </div>
