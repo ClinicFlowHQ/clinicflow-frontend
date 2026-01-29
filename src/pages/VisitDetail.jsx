@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getPatient } from "../api/patients";
-import { createVitals, getVisit, getVitals, updateVisit, downloadPrescriptionPdf, downloadVisitSummaryPdf } from "../api/visits";
+import { createVitals, getVisit, getVitals, updateVisit, updateVitals, downloadPrescriptionPdf, downloadVisitSummaryPdf } from "../api/visits";
 import { getPrescriptions, unwrapListResults } from "../api/prescriptions";
 import { formatDateTime } from "../utils/dateFormat";
 
@@ -49,6 +49,7 @@ export default function VisitDetail() {
   const [summaryDownloading, setSummaryDownloading] = useState(false);
 
   const [showVitalsForm, setShowVitalsForm] = useState(false);
+  const [editingVitals, setEditingVitals] = useState(null); // vitals object being edited
 
   const [form, setForm] = useState({
     measured_at: "",
@@ -150,7 +151,43 @@ export default function VisitDetail() {
     return int ? Math.trunc(n) : n;
   }
 
-  async function handleCreateVitals(e) {
+  function startEditVitals(vital) {
+    setEditingVitals(vital);
+    setForm({
+      measured_at: vital.measured_at ? vital.measured_at.slice(0, 16) : "",
+      weight_kg: vital.weight_kg ?? "",
+      height_cm: vital.height_cm ?? "",
+      temperature_c: vital.temperature_c ?? "",
+      bp_systolic: vital.bp_systolic ?? "",
+      bp_diastolic: vital.bp_diastolic ?? "",
+      heart_rate_bpm: vital.heart_rate_bpm ?? "",
+      respiratory_rate_rpm: vital.respiratory_rate_rpm ?? "",
+      oxygen_saturation_pct: vital.oxygen_saturation_pct ?? "",
+      head_circumference_cm: vital.head_circumference_cm ?? "",
+      notes: vital.notes ?? "",
+    });
+    setShowVitalsForm(true);
+  }
+
+  function cancelEditVitals() {
+    setEditingVitals(null);
+    setForm({
+      measured_at: "",
+      weight_kg: "",
+      height_cm: "",
+      temperature_c: "",
+      bp_systolic: "",
+      bp_diastolic: "",
+      heart_rate_bpm: "",
+      respiratory_rate_rpm: "",
+      oxygen_saturation_pct: "",
+      head_circumference_cm: "",
+      notes: "",
+    });
+    setShowVitalsForm(false);
+  }
+
+  async function handleSaveVitals(e) {
     e.preventDefault();
     setSaving(true);
     setError("");
@@ -158,16 +195,13 @@ export default function VisitDetail() {
 
     try {
       const payload = {
-        visit: visitIdNum,
         ...(form.measured_at ? { measured_at: form.measured_at } : {}),
-
         ...(toNumberOrNull(form.weight_kg) != null ? { weight_kg: toNumberOrNull(form.weight_kg) } : {}),
         ...(toNumberOrNull(form.height_cm) != null ? { height_cm: toNumberOrNull(form.height_cm) } : {}),
         ...(toNumberOrNull(form.temperature_c) != null ? { temperature_c: toNumberOrNull(form.temperature_c) } : {}),
         ...(toNumberOrNull(form.head_circumference_cm) != null
           ? { head_circumference_cm: toNumberOrNull(form.head_circumference_cm) }
           : {}),
-
         ...(toNumberOrNull(form.bp_systolic, { int: true }) != null
           ? { bp_systolic: toNumberOrNull(form.bp_systolic, { int: true }) }
           : {}),
@@ -183,32 +217,25 @@ export default function VisitDetail() {
         ...(toNumberOrNull(form.oxygen_saturation_pct, { int: true }) != null
           ? { oxygen_saturation_pct: toNumberOrNull(form.oxygen_saturation_pct, { int: true }) }
           : {}),
-
         ...(String(form.notes || "").trim() ? { notes: String(form.notes).trim() } : {}),
       };
 
-      await createVitals(payload);
+      if (editingVitals) {
+        // Update existing vitals
+        await updateVitals(editingVitals.id, payload);
+        setSuccess(t("visitDetail.vitalsUpdateSuccess"));
+      } else {
+        // Create new vitals
+        payload.visit = visitIdNum;
+        await createVitals(payload);
+        setSuccess(t("visitDetail.vitalsSuccess"));
+      }
 
-      setForm({
-        measured_at: "",
-        weight_kg: "",
-        height_cm: "",
-        temperature_c: "",
-        bp_systolic: "",
-        bp_diastolic: "",
-        heart_rate_bpm: "",
-        respiratory_rate_rpm: "",
-        oxygen_saturation_pct: "",
-        head_circumference_cm: "",
-        notes: "",
-      });
-
-      setShowVitalsForm(false);
-      setSuccess(t("visitDetail.vitalsSuccess"));
+      cancelEditVitals();
       await load();
     } catch (err) {
-      console.log("CREATE VITALS ERROR:", err?.response?.data || err);
-      setError(t("visitDetail.vitalsError"));
+      console.log("SAVE VITALS ERROR:", err?.response?.data || err);
+      setError(editingVitals ? t("visitDetail.vitalsUpdateError") : t("visitDetail.vitalsError"));
     } finally {
       setSaving(false);
     }
@@ -617,7 +644,13 @@ export default function VisitDetail() {
             title={t("visits.vitals")}
             subtitle={latestVitals?.measured_at ? `${t("visitDetail.latest")}: ${formatDateTime(latestVitals.measured_at)}` : t("visitDetail.noVitalsRecorded")}
             right={
-              <button onClick={() => setShowVitalsForm((s) => !s)} style={btn}>
+              <button onClick={() => {
+                if (showVitalsForm) {
+                  cancelEditVitals();
+                } else {
+                  setShowVitalsForm(true);
+                }
+              }} style={btn}>
                 {showVitalsForm ? t("common.close") : t("visitDetail.addVitals")}
               </button>
             }
@@ -648,7 +681,12 @@ export default function VisitDetail() {
             )}
 
             {showVitalsForm ? (
-              <form onSubmit={handleCreateVitals} style={{ marginTop: 14, borderTop: "1px solid var(--border)", paddingTop: 14 }}>
+              <form onSubmit={handleSaveVitals} style={{ marginTop: 14, borderTop: "1px solid var(--border)", paddingTop: 14 }}>
+                {editingVitals && (
+                  <div style={{ marginBottom: 12, padding: "8px 12px", background: "rgba(59, 130, 246, 0.1)", borderRadius: 8, fontSize: "0.875rem", color: "var(--accent)" }}>
+                    {t("visitDetail.editingVitals")}
+                  </div>
+                )}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
                   <div>
                     <label style={label}>{t("visitDetail.measuredAt")}</label>
@@ -712,6 +750,7 @@ export default function VisitDetail() {
                       <th style={th}>BP</th>
                       <th style={th}>HR</th>
                       <th style={th}>SpO2</th>
+                      <th style={th}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -722,6 +761,15 @@ export default function VisitDetail() {
                         <td style={td}>{x.bp_systolic != null && x.bp_diastolic != null ? `${x.bp_systolic}/${x.bp_diastolic}` : "-"}</td>
                         <td style={td}>{x.heart_rate_bpm != null ? x.heart_rate_bpm : "-"}</td>
                         <td style={td}>{x.oxygen_saturation_pct != null ? `${x.oxygen_saturation_pct}%` : "-"}</td>
+                        <td style={td}>
+                          <button
+                            onClick={() => startEditVitals(x)}
+                            style={{ ...btnSmall, whiteSpace: "nowrap" }}
+                            title={t("common.edit")}
+                          >
+                            {t("common.edit")}
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -814,6 +862,18 @@ const btnPrimary = {
   background: "var(--accent)",
   borderColor: "var(--accent)",
   color: "var(--accentText)",
+};
+
+const btnSmall = {
+  padding: "6px 10px",
+  borderRadius: 8,
+  border: "1px solid var(--border)",
+  background: "var(--card)",
+  color: "var(--text)",
+  cursor: "pointer",
+  fontWeight: 500,
+  fontSize: "0.75rem",
+  transition: "all 150ms ease",
 };
 
 const label = {
