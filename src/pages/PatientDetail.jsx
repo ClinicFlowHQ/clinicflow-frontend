@@ -41,6 +41,11 @@ const Icons = {
       <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
     </svg>
   ),
+  Mail: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+    </svg>
+  ),
   MapPin: () => (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>
@@ -105,6 +110,7 @@ export default function PatientDetail() {
     last_name: "",
     sex: "M",
     phone: "",
+    email: "",
     date_of_birth: "",
     address: "",
   });
@@ -131,6 +137,7 @@ export default function PatientDetail() {
         last_name: data.last_name || "",
         sex: data.sex || "M",
         phone: data.phone || "",
+        email: data.email || "",
         date_of_birth: data.date_of_birth || "",
         address: data.address || "",
       });
@@ -168,6 +175,7 @@ export default function PatientDetail() {
         last_name: form.last_name.trim(),
         sex: form.sex,
         phone: form.phone.trim(),
+        email: form.email.trim(),
         date_of_birth: form.date_of_birth,
         address: form.address.trim(),
       };
@@ -380,6 +388,7 @@ export default function PatientDetail() {
                 last_name: patient.last_name || "",
                 sex: patient.sex || "M",
                 phone: patient.phone || "",
+                email: patient.email || "",
                 date_of_birth: patient.date_of_birth || "",
                 address: patient.address || "",
               });
@@ -434,6 +443,14 @@ export default function PatientDetail() {
               />
             </div>
             <div>
+              <label style={labelStyle}>{t("patients.email")}</label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+              />
+            </div>
+            <div>
               <label style={labelStyle}>{t("patients.address")} *</label>
               <input
                 value={form.address}
@@ -457,6 +474,7 @@ export default function PatientDetail() {
                 last_name: patient.last_name || "",
                 sex: patient.sex || "M",
                 phone: patient.phone || "",
+                email: patient.email || "",
                 date_of_birth: patient.date_of_birth || "",
                 address: patient.address || "",
               });
@@ -493,6 +511,16 @@ export default function PatientDetail() {
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <Icons.Phone />
                 <span>{patient.phone || "-"}</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <Icons.Mail />
+                {patient.email ? (
+                  <a href={`mailto:${patient.email}`} style={{ color: "var(--accent)", textDecoration: "none" }}>
+                    {patient.email}
+                  </a>
+                ) : (
+                  <span>-</span>
+                )}
               </div>
               <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
                 <Icons.MapPin />

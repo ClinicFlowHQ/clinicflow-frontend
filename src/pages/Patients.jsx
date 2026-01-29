@@ -83,6 +83,7 @@ export default function Patients() {
   const [lastName, setLastName] = useState("");
   const [sex, setSex] = useState("M");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [address, setAddress] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -125,10 +126,11 @@ export default function Patients() {
         last_name: lastName.trim(),
         sex,
         phone: phone.trim(),
+        email: email.trim(),
         date_of_birth: dateOfBirth,
         address: address.trim(),
       });
-      setFirstName(""); setLastName(""); setSex("M"); setPhone(""); setDateOfBirth(""); setAddress("");
+      setFirstName(""); setLastName(""); setSex("M"); setPhone(""); setEmail(""); setDateOfBirth(""); setAddress("");
       setShowForm(false);
       await loadPatients(1, query, pageSize, showArchived);
     } catch (err) {
@@ -223,6 +225,12 @@ export default function Patients() {
                 {t("patients.phone")}
               </label>
               <input placeholder="+1 234 567 8900" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </div>
+            <div>
+              <label style={{ display: "block", marginBottom: 6, fontSize: "0.875rem", fontWeight: 500, color: "var(--text)" }}>
+                {t("patients.email")}
+              </label>
+              <input type="email" placeholder="patient@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <div>
               <label style={{ display: "block", marginBottom: 6, fontSize: "0.875rem", fontWeight: 500, color: "var(--text)" }}>
